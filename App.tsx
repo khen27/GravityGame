@@ -13,15 +13,16 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 
 // Get device dimensions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// 🎮 GAME CONSTANTS
+// 🎮 GAME CONSTANTS - MARTIN'S FEEDBACK EDITION! 🚀
 const PLAYER_SIZE = 40;
 const OBSTACLE_WIDTH = 30;
 const OBSTACLE_HEIGHT = 100;
-const BASE_SPEED = 2;
+const BASE_SPEED = 5; // 🚀 MUCH FASTER for Martin!
 const POWERUP_SIZE = 25;
 const TRANSITION_DURATION = 200;
 
@@ -125,7 +126,7 @@ const TRANSLATIONS: Record<Language, Translation> = {
     
     classic: 'Classic',
     timeAttack: 'Time Attack',
-    powerUpRush: 'Power-up Rush',
+    powerUpRush: 'Power Rush',
     hardcore: 'Hardcore',
     zenMode: 'Zen Mode',
     
@@ -258,6 +259,32 @@ interface PlayerSkin {
   unlocked: boolean;
 }
 
+// ✨ PARTICLE SYSTEM TYPES
+interface Particle {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  color: string;
+  type: 'explosion' | 'achievement' | 'flip' | 'trail' | 'special';
+  opacity: number;
+}
+
+interface TrailParticle {
+  id: string;
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  color: string;
+  opacity: number;
+}
+
 interface TrailEffect {
   id: string;
   name: string;
@@ -308,13 +335,80 @@ interface Obstacle {
   type: 'basic' | 'spike' | 'moving';
 }
 
-// ⭐ POWER-UP TYPES
+// ⭐ EPIC POWER-UP TYPES - MASSIVE EXPANSION!
 interface PowerUp {
   id: string;
   x: number;
   y: number;
-  type: 'score' | 'shield' | 'slow_time';
+  type: 'score' | 'shield' | 'slow_time' | 'time_freeze' | 'double_score' | 'magnet' | 'ghost_mode';
   collected: boolean;
+  duration?: number; // For timed effects
+}
+
+// 🦹‍♂️ EPIC BOSS SYSTEM TYPES
+interface Boss {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: 'gravity_well' | 'speed_demon' | 'size_shifter' | 'adaptive_hunter' | 'chaos_master';
+  health: number;
+  maxHealth: number;
+  phase: number;
+  lastAbilityTime: number;
+  isWarning: boolean;
+  warningTime: number;
+  color: string;
+  speed: number;
+  direction: number;
+  abilityPattern: number[];
+  defeated: boolean;
+}
+
+enum BossType {
+  GRAVITY_WELL = 'gravity_well',
+  SPEED_DEMON = 'speed_demon', 
+  SIZE_SHIFTER = 'size_shifter',
+  ADAPTIVE_HUNTER = 'adaptive_hunter',
+  CHAOS_MASTER = 'chaos_master'
+}
+
+// 🏆 ONLINE LEADERBOARD TYPES
+interface LeaderboardEntry {
+  id: string;
+  playerName: string;
+  score: number;
+  distance: number;
+  bossesDefeated: number;
+  gameMode: GameMode;
+  timestamp: number;
+  country: string;
+  rank: number;
+}
+
+interface DailyChallenge {
+  id: string;
+  title: string;
+  description: string;
+  target: number;
+  reward: string;
+  type: 'distance' | 'bosses' | 'flips' | 'survival_time' | 'perfect_run';
+  progress: number;
+  completed: boolean;
+  expiresAt: number;
+}
+
+interface PlayerStats {
+  totalGames: number;
+  totalDistance: number;
+  totalFlips: number;
+  bossesDefeated: number;
+  averageScore: number;
+  bestStreak: number;
+  achievementsUnlocked: number;
+  rank: number;
+  level: number;
 }
 
 export default function App() {
@@ -349,17 +443,102 @@ export default function App() {
   const [currentLanguage, setCurrentLanguage] = useState<Language>(Language.ENGLISH);
   const t = TRANSLATIONS[currentLanguage];
 
-     // 🎯 GAME OBJECTS
-   const [obstacles, setObstacles] = useState<Obstacle[]>([]);
-   const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+       // 🎯 GAME OBJECTS
+  const [obstacles, setObstacles] = useState<Obstacle[]>([]);
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  // ⚡ EPIC POWER-UP EFFECTS STATE - GAME-CHANGING ABILITIES!
+  const [activePowerUps, setActivePowerUps] = useState({
+    timeFreeze: { active: false, endTime: 0 },
+    doubleScore: { active: false, endTime: 0 },
+    magnet: { active: false, endTime: 0 },
+    ghostMode: { active: false, endTime: 0 },
+    shield: { active: false, endTime: 0 },
+  });
+
+  // 🦹‍♂️ EPIC BOSS BATTLE STATE
+  const [bosses, setBosses] = useState<Boss[]>([]);
+  const [bossWarningActive, setBossWarningActive] = useState(false);
+  const [lastBossSpawn, setLastBossSpawn] = useState(0);
+  const [bossesDefeated, setBossesDefeated] = useState(0);
+
+  // 🏆 ONLINE FEATURES STATE
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
+  const [playerStats, setPlayerStats] = useState<PlayerStats>({
+    totalGames: 0,
+    totalDistance: 0,
+    totalFlips: 0,
+    bossesDefeated: 0,
+    averageScore: 0,
+    bestStreak: 0,
+    achievementsUnlocked: 0,
+    rank: 999999,
+    level: 1,
+  });
+  const [playerName, setPlayerName] = useState('Anonymous Player');
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
    
    // 🏆 ACHIEVEMENT TRACKING
    const [totalFlips, setTotalFlips] = useState(0);
    const [gamesPlayed, setGamesPlayed] = useState(0);
 
+   // ✨ PARTICLE SYSTEM STATE
+   const [particles, setParticles] = useState<Particle[]>([]);
+   const [trailParticles, setTrailParticles] = useState<TrailParticle[]>([]);
+
+  // 🎵 EPIC AUDIO SYSTEM SETUP
+  const flipAudioPlayer = useAudioPlayer(null);
+  const gameOverAudioPlayer = useAudioPlayer(null);
+  const startAudioPlayer = useAudioPlayer(null);
+  const powerUpAudioPlayer = useAudioPlayer(null);
+  const achievementAudioPlayer = useAudioPlayer(null);
+   
+  // Get player statuses for feedback
+  const flipAudioStatus = useAudioPlayerStatus(flipAudioPlayer);
+  const gameOverAudioStatus = useAudioPlayerStatus(gameOverAudioPlayer);
+  const startAudioStatus = useAudioPlayerStatus(startAudioPlayer);
+  const powerUpAudioStatus = useAudioPlayerStatus(powerUpAudioPlayer);
+  const achievementAudioStatus = useAudioPlayerStatus(achievementAudioPlayer);
+
   // 🎪 ANIMATIONS
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const screenShake = useRef(new Animated.Value(0)).current;
+
+  // 💥 ENHANCED CAMERA SHAKE SYSTEM - EPIC VISUAL FEEDBACK!
+  const triggerScreenShake = useCallback((intensity: 'light' | 'medium' | 'heavy' | 'extreme' = 'medium') => {
+    const shakeValues: Record<string, { amount: number; duration: number; cycles: number }> = {
+      light: { amount: 3, duration: 30, cycles: 2 },
+      medium: { amount: 8, duration: 40, cycles: 3 },
+      heavy: { amount: 15, duration: 60, cycles: 4 },
+      extreme: { amount: 25, duration: 80, cycles: 6 },
+    };
+
+    const { amount, duration, cycles } = shakeValues[intensity];
+    const animations: Animated.CompositeAnimation[] = [];
+
+    for (let i = 0; i < cycles; i++) {
+      animations.push(
+        Animated.timing(screenShake, {
+          toValue: (i % 2 === 0 ? 1 : -1) * amount * (1 - i / cycles), // Diminishing shake
+          duration: duration,
+          useNativeDriver: false,
+        })
+      );
+    }
+
+    animations.push(
+      Animated.timing(screenShake, {
+        toValue: 0,
+        duration: duration,
+        useNativeDriver: false,
+      })
+    );
+
+    Animated.sequence(animations).start();
+  }, [screenShake]);
+
+
   const gameOverFadeAnim = useRef(new Animated.Value(0)).current;
   const gameOverScaleAnim = useRef(new Animated.Value(0.8)).current;
 
@@ -367,11 +546,78 @@ export default function App() {
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
   const obstacleSpawnRef = useRef<NodeJS.Timeout | null>(null);
 
-     // 🎵 AUDIO FUNCTIONS (placeholder for now)
-   const playSound = useCallback((soundName: string) => {
-     if (!audioEnabled) return;
-     // Audio implementation will come in Phase 4
-   }, [audioEnabled]);
+     // 🎵 SOUND GENERATION FUNCTIONS
+   const generateFlipSound = useCallback(() => {
+     // Generate a crisp flip sound using Web Audio API frequencies
+     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmJABjiV3eyXOz4JI37F8N2QQgoUXLDl5qtYFwlFnt/yv2E='; // Placeholder for flip sound
+   }, []);
+
+   const generateGameOverSound = useCallback(() => {
+     // Generate a dramatic descending game over sound
+     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmRABzuU3O2ZOz8HInzD8d+RQwsVXbLn5qpXFglDnt7zv2I='; // Placeholder for game over sound
+   }, []);
+
+   const generateStartSound = useCallback(() => {
+     // Generate an uplifting start sound with rising tones
+     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmVBBzqT3O6aPUAIJX7E8d6QQwsVXLHm5alXFwlDnN3zv2M='; // Placeholder for start sound
+   }, []);
+
+   const generatePowerUpSound = useCallback(() => {
+     // Generate a satisfying power-up chime sound
+     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmZCBzmS2+6bPkEJJn/F8N6PQgsVW7Dl5ahYGAlCm9zzwGQ='; // Placeholder for power-up sound
+   }, []);
+
+   const generateAchievementSound = useCallback(() => {
+     // Generate a triumphant achievement fanfare sound
+     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmZDBzqR2+2cP0IKJ4DG8N+PQQoUWrDk5ahYGQlBm9vywGU='; // Placeholder for achievement sound
+   }, []);
+
+   // 🎵 EPIC AUDIO SYSTEM - PHASE D!
+   const playSound = useCallback((soundType: 'flip' | 'game_over' | 'start' | 'power_up' | 'achievement') => {
+     try {
+       console.log(`🎵 Playing ${soundType} sound effect!`);
+       
+       switch (soundType) {
+         case 'flip':
+           // Generate crisp flip sound: Quick, sharp beep
+           flipAudioPlayer.replace({
+             uri: generateFlipSound()
+           });
+           flipAudioPlayer.play();
+           break;
+         case 'game_over':
+           // Generate dramatic game over sound: Descending tones
+           gameOverAudioPlayer.replace({
+             uri: generateGameOverSound()
+           });
+           gameOverAudioPlayer.play();
+           break;
+         case 'start':
+           // Generate uplifting start sound: Rising power-up
+           startAudioPlayer.replace({
+             uri: generateStartSound()
+           });
+           startAudioPlayer.play();
+           break;
+         case 'power_up':
+           // Generate satisfying power-up sound: Chime
+           powerUpAudioPlayer.replace({
+             uri: generatePowerUpSound()
+           });
+           powerUpAudioPlayer.play();
+           break;
+         case 'achievement':
+           // Generate triumphant achievement sound: Fanfare
+           achievementAudioPlayer.replace({
+             uri: generateAchievementSound()
+           });
+           achievementAudioPlayer.play();
+           break;
+       }
+     } catch (error) {
+       console.log(`🎵 Audio playback failed for ${soundType}:`, error);
+     }
+   }, [flipAudioPlayer, gameOverAudioPlayer, startAudioPlayer, powerUpAudioPlayer, achievementAudioPlayer]);
 
    // 📳 HAPTIC FEEDBACK FUNCTIONS
    const triggerHaptic = useCallback((type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error') => {
@@ -400,9 +646,115 @@ export default function App() {
        // Haptics might not be available on all devices
        console.log('Haptic feedback not available');
      }
-   }, []);
+      }, []);
 
-  // 💾 STORAGE FUNCTIONS
+   // ✨ PARTICLE SYSTEM FUNCTIONS
+   const createParticles = useCallback((x: number, y: number, type: Particle['type'], count: number = 8) => {
+     const newParticles: Particle[] = [];
+     
+     for (let i = 0; i < count; i++) {
+       const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+       const speed = Math.random() * 3 + 1;
+       const life = Math.random() * 60 + 30;
+       
+       let color = '#FFD60A';
+       let size = Math.random() * 8 + 4;
+       
+       switch (type) {
+         case 'explosion':
+           color = ['#FF4444', '#FF6B35', '#FFD60A', '#FFFFFF'][Math.floor(Math.random() * 4)];
+           size = Math.random() * 12 + 6;
+           break;
+         case 'achievement':
+           color = ['#22C55E', '#4CAF50', '#8BC34A', '#CDDC39'][Math.floor(Math.random() * 4)];
+           size = Math.random() * 10 + 5;
+           break;
+         case 'flip':
+           color = gameState.currentMode === GameMode.TIME_ATTACK ? '#FF6B35' :
+                   gameState.currentMode === GameMode.POWER_UP_RUSH ? '#9C27B0' :
+                   gameState.currentMode === GameMode.HARDCORE ? '#D32F2F' :
+                   gameState.currentMode === GameMode.ZEN ? '#4CAF50' : '#8B5CF6';
+           size = Math.random() * 6 + 3;
+           break;
+         case 'special':
+           color = '#FFD60A';
+           size = Math.random() * 15 + 8;
+           break;
+       }
+       
+       newParticles.push({
+         id: `particle_${Date.now()}_${i}`,
+         x,
+         y,
+         vx: Math.cos(angle) * speed,
+         vy: Math.sin(angle) * speed,
+         life,
+         maxLife: life,
+         size,
+         color,
+         type,
+         opacity: 1,
+       });
+     }
+     
+     setParticles(prev => [...prev, ...newParticles]);
+   }, [gameState.currentMode]);
+
+   const createTrailParticle = useCallback((x: number, y: number) => {
+     const trailParticle: TrailParticle = {
+       id: `trail_${Date.now()}`,
+       x,
+       y,
+       life: 30,
+       maxLife: 30,
+       size: Math.random() * 4 + 2,
+       color: gameState.currentMode === GameMode.TIME_ATTACK ? '#FF6B35' :
+              gameState.currentMode === GameMode.POWER_UP_RUSH ? '#9C27B0' :
+              gameState.currentMode === GameMode.HARDCORE ? '#D32F2F' :
+              gameState.currentMode === GameMode.ZEN ? '#4CAF50' : '#8B5CF6',
+       opacity: 0.8,
+     };
+     
+     setTrailParticles(prev => [...prev, trailParticle]);
+   }, [gameState.currentMode]);
+
+   // ✨ PARTICLE UPDATE SYSTEM
+   useEffect(() => {
+     if (!gameState.isPlaying) return;
+
+     const updateInterval = setInterval(() => {
+       // Update regular particles
+       setParticles(prev => 
+         prev.map(particle => ({
+           ...particle,
+           x: particle.x + particle.vx,
+           y: particle.y + particle.vy,
+           life: particle.life - 1,
+           opacity: particle.life / particle.maxLife,
+           vy: particle.vy + 0.1, // Gravity effect
+         })).filter(particle => particle.life > 0)
+       );
+
+       // Update trail particles
+       setTrailParticles(prev => 
+         prev.map(trail => ({
+           ...trail,
+           life: trail.life - 1,
+           opacity: (trail.life / trail.maxLife) * 0.8,
+           size: trail.size * 0.98, // Shrink over time
+         })).filter(trail => trail.life > 0)
+       );
+
+       // Create player trail particles
+       if (Math.random() > 0.7) { // 30% chance each frame
+         createTrailParticle(50, currentPlayerY.current);
+       }
+     }, 32); // ~30fps for particles
+
+     return () => clearInterval(updateInterval);
+   }, [gameState.isPlaying, createTrailParticle]);
+
+   // 💾 STORAGE FUNCTIONS
   const loadHighScore = useCallback(async () => {
     try {
       const savedScore = await AsyncStorage.getItem(HIGH_SCORE_KEY);
@@ -454,8 +806,18 @@ export default function App() {
 
          setPlayerState(PlayerState.TRANSITIONING);
      setTotalFlips(prev => prev + 1);
+     
+     // ✨ CREATE FLIP PARTICLE EFFECT
+     createParticles(50, currentPlayerY.current, 'flip', 6);
+     
      triggerHaptic('light');
      playSound('flip');
+     
+     // 💫 SUBTLE FLIP CAMERA SHAKE!
+     triggerScreenShake('light');
+     
+     // 🌈 FLIP GLOW EFFECT!
+     updatePlayerGlow('#00FF88', 1.3);
 
     // Haptic feedback
     try {
@@ -463,6 +825,11 @@ export default function App() {
     } catch (error) {
       // Haptics failed
     }
+
+    // Update position in real-time for collision detection! 🎯
+    const animationListener = playerY.addListener(({ value }) => {
+      currentPlayerY.current = value;
+    });
 
     // Player animations
     Animated.parallel([
@@ -492,6 +859,7 @@ export default function App() {
        setPlayerState(newState);
        currentPlayerY.current = targetY;
        playerRotation.setValue(0); // Reset rotation
+       playerY.removeListener(animationListener); // Clean up listener
      });
   }, [playerState, playSound, playerY, playerScale, playerRotation]);
 
@@ -541,7 +909,7 @@ export default function App() {
     }
   }, [gameState.currentMode]);
 
-  // 💥 COLLISION DETECTION
+  // 💥 COLLISION DETECTION - MARTIN'S CHALLENGE MODE! 🎯
   const checkCollision = useCallback(() => {
     const playerBounds = {
       x: 50 - PLAYER_SIZE / 2,
@@ -550,18 +918,165 @@ export default function App() {
       height: PLAYER_SIZE,
     };
 
+    console.log('[COLLISION] 🎯 Checking collisions - Player Y:', currentPlayerY.current, 'Obstacles:', obstacles.length);
+
     for (const obstacle of obstacles) {
+      console.log('[COLLISION] 🚧 Obstacle at:', obstacle.x, obstacle.y, 'Player bounds:', playerBounds);
+      
       if (
         playerBounds.x < obstacle.x + obstacle.width &&
         playerBounds.x + playerBounds.width > obstacle.x &&
         playerBounds.y < obstacle.y + obstacle.height &&
         playerBounds.y + playerBounds.height > obstacle.y
       ) {
+        console.log('[COLLISION] 💥 COLLISION DETECTED! Game Over!');
         return true;
       }
     }
     return false;
   }, [obstacles]);
+
+  // ⭐ POWER-UP COLLISION DETECTION - MARTIN'S COLLECTION EDITION! 💎
+  const checkPowerUpCollision = useCallback(() => {
+    const playerBounds = {
+      x: 50 - PLAYER_SIZE / 2,
+      y: currentPlayerY.current - PLAYER_SIZE / 2,
+      width: PLAYER_SIZE,
+      height: PLAYER_SIZE,
+    };
+
+    console.log('[POWERUP] ⭐ Checking power-up collisions - Player Y:', currentPlayerY.current, 'Power-ups:', powerUps.length);
+
+    for (const powerUp of powerUps) {
+      if (powerUp.collected) continue;
+
+      const powerUpBounds = {
+        x: powerUp.x - POWERUP_SIZE / 2,
+        y: powerUp.y - POWERUP_SIZE / 2,
+        width: POWERUP_SIZE,
+        height: POWERUP_SIZE,
+      };
+
+      console.log('[POWERUP] 💎 Power-up at:', powerUp.x, powerUp.y, 'Player bounds:', playerBounds);
+
+      if (
+        playerBounds.x < powerUpBounds.x + powerUpBounds.width &&
+        playerBounds.x + playerBounds.width > powerUpBounds.x &&
+        playerBounds.y < powerUpBounds.y + powerUpBounds.height &&
+        playerBounds.y + playerBounds.height > powerUpBounds.y
+      ) {
+        console.log('[POWERUP] ✨ POWER-UP COLLECTED!', powerUp.type);
+        return powerUp;
+      }
+    }
+    return null;
+  }, [powerUps]);
+
+  // 🦹‍♂️ BOSS COLLISION DETECTION
+  const checkBossCollision = useCallback(() => {
+    const playerBounds = {
+      x: 50 - PLAYER_SIZE / 2,
+      y: currentPlayerY.current - PLAYER_SIZE / 2,
+      width: PLAYER_SIZE,
+      height: PLAYER_SIZE,
+    };
+
+    for (const boss of bosses) {
+      if (boss.defeated) continue;
+
+      const bossBounds = {
+        x: boss.x,
+        y: boss.y,
+        width: boss.width,
+        height: boss.height,
+      };
+
+      if (
+        playerBounds.x < bossBounds.x + bossBounds.width &&
+        playerBounds.x + playerBounds.width > bossBounds.x &&
+        playerBounds.y < bossBounds.y + bossBounds.height &&
+        playerBounds.y + playerBounds.height > bossBounds.y
+      ) {
+        return boss;
+      }
+    }
+    return null;
+  }, [bosses]);
+
+  // 🌟 PARALLAX BACKGROUND SYSTEM - EPIC SPACE ENVIRONMENT!
+  const generateBackgroundStars = useCallback(() => {
+    const stars: BackgroundStar[] = [];
+    const starColors = ['#FFFFFF', '#FFD700', '#87CEEB', '#DDA0DD', '#98FB98', '#F0E68C'];
+    
+    // Generate initial stars
+    for (let i = 0; i < 150; i++) {
+      stars.push({
+        id: `star_${i}`,
+        x: Math.random() * (SCREEN_WIDTH + 200),
+        y: Math.random() * SCREEN_HEIGHT,
+        size: 1 + Math.random() * 3,
+        opacity: 0.3 + Math.random() * 0.7,
+        speed: 0.5 + Math.random() * 2,
+        color: starColors[Math.floor(Math.random() * starColors.length)],
+      });
+    }
+    
+    setBackgroundStars(stars);
+  }, []);
+
+  const generateBackgroundPlanets = useCallback(() => {
+    const planets: BackgroundPlanet[] = [];
+    const planetColors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#F39C12'];
+    const planetTypes: ('planet' | 'moon' | 'asteroid')[] = ['planet', 'moon', 'asteroid'];
+    
+    // Generate initial planets
+    for (let i = 0; i < 8; i++) {
+      planets.push({
+        id: `planet_${i}`,
+        x: Math.random() * (SCREEN_WIDTH + 400),
+        y: Math.random() * SCREEN_HEIGHT,
+        size: 20 + Math.random() * 80,
+        color: planetColors[Math.floor(Math.random() * planetColors.length)],
+        speed: 0.2 + Math.random() * 0.8,
+        type: planetTypes[Math.floor(Math.random() * planetTypes.length)],
+      });
+    }
+    
+    setBackgroundPlanets(planets);
+  }, []);
+
+  const spawnNewBackgroundElement = useCallback(() => {
+    // Spawn new star
+    if (Math.random() < 0.7) {
+      const starColors = ['#FFFFFF', '#FFD700', '#87CEEB', '#DDA0DD', '#98FB98', '#F0E68C'];
+      const newStar: BackgroundStar = {
+        id: `star_${Date.now()}`,
+        x: SCREEN_WIDTH + 50,
+        y: Math.random() * SCREEN_HEIGHT,
+        size: 1 + Math.random() * 3,
+        opacity: 0.3 + Math.random() * 0.7,
+        speed: 0.5 + Math.random() * 2,
+        color: starColors[Math.floor(Math.random() * starColors.length)],
+      };
+      setBackgroundStars(prev => [...prev, newStar]);
+    }
+    
+    // Spawn new planet occasionally
+    if (Math.random() < 0.1) {
+      const planetColors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#F39C12'];
+      const planetTypes: ('planet' | 'moon' | 'asteroid')[] = ['planet', 'moon', 'asteroid'];
+      const newPlanet: BackgroundPlanet = {
+        id: `planet_${Date.now()}`,
+        x: SCREEN_WIDTH + 100,
+        y: Math.random() * SCREEN_HEIGHT,
+        size: 20 + Math.random() * 80,
+        color: planetColors[Math.floor(Math.random() * planetColors.length)],
+        speed: 0.2 + Math.random() * 0.8,
+        type: planetTypes[Math.floor(Math.random() * planetTypes.length)],
+      };
+      setBackgroundPlanets(prev => [...prev, newPlanet]);
+    }
+  }, []);
 
   // 🎯 GAME OVER
   const gameOver = useCallback(() => {
@@ -582,15 +1097,21 @@ export default function App() {
 
        setGameState(prev => ({ ...prev, isPlaying: false, isGameOver: true }));
    setGamesPlayed(prev => prev + 1);
+   
+   // 🔥 STOP PLAYER TRAIL
+   stopPlayerTrail();
+   
+   // ✨ CREATE EPIC EXPLOSION PARTICLE EFFECT
+   createParticles(50, currentPlayerY.current, 'explosion', 15);
+   
+   // 🏆 SUBMIT SCORE TO LEADERBOARD
+   submitScore(gameState.distance, gameState.distance, bossesDefeated);
+   
    triggerHaptic('error');
    playSound('game_over');
 
-   // Screen shake effect
-   Animated.sequence([
-     Animated.timing(screenShake, { toValue: 10, duration: 50, useNativeDriver: false }),
-     Animated.timing(screenShake, { toValue: -10, duration: 50, useNativeDriver: false }),
-     Animated.timing(screenShake, { toValue: 0, duration: 50, useNativeDriver: false }),
-   ]).start();
+   // 💥 EPIC GAME OVER SCREEN SHAKE!
+   triggerScreenShake('extreme');
 
    // Game over modal entrance animation
    setTimeout(() => {
@@ -608,20 +1129,13 @@ export default function App() {
        }),
      ]).start();
    }, 300);
-  }, [gameState.distance, gameState.highScore, saveHighScore, playSound, screenShake]);
+  }, [gameState.distance, gameState.highScore, saveHighScore, playSound, triggerScreenShake]);
 
      // 🚀 START GAME
    const startGame = useCallback(() => {
-     // Reset player
-     playerY.setValue(SAFE_BOTTOM_POSITION);
-     currentPlayerY.current = SAFE_BOTTOM_POSITION;
-     setPlayerState(PlayerState.BOTTOM);
-
-     // Reset animations
-     gameOverFadeAnim.setValue(0);
-     gameOverScaleAnim.setValue(0.8);
-
-    // Reset game state
+    console.log('🎵 Playing start sound effect!');
+    playSound('start');
+    
     setGameState(prev => ({
       ...prev,
       isPlaying: true,
@@ -630,15 +1144,496 @@ export default function App() {
       speed: BASE_SPEED,
       skill: 0,
       flow: 0,
-      maxSpeed: BASE_SPEED,
     }));
-
-    // Clear objects
+    
+    // Reset player position
+    playerY.setValue(SAFE_BOTTOM_POSITION);
+    currentPlayerY.current = SAFE_BOTTOM_POSITION;
+    setPlayerState(PlayerState.BOTTOM);
+    
+    // Reset game objects
     setObstacles([]);
     setPowerUps([]);
+    setParticles([]);
+    setBosses([]);
+    setBossWarningActive(false);
+    setLastBossSpawn(0);
 
-    playSound('start');
-  }, [playerY, playSound]);
+    // ⚡ RESET ALL POWER-UP EFFECTS!
+    setActivePowerUps({
+      timeFreeze: { active: false, endTime: 0 },
+      doubleScore: { active: false, endTime: 0 },
+      magnet: { active: false, endTime: 0 },
+      ghostMode: { active: false, endTime: 0 },
+      shield: { active: false, endTime: 0 },
+    });
+
+    // 🌟 INITIALIZE EPIC PARALLAX BACKGROUND!
+    generateBackgroundStars();
+    generateBackgroundPlanets();
+    
+    // 🌈 START GAMEPLAY GLOW PULSE!
+    pulsePlayerGlow();
+    
+    // 🔥 START EPIC PLAYER TRAIL!
+    startPlayerTrail();
+    
+    // Trigger haptics
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [playSound, generateBackgroundStars, generateBackgroundPlanets]);
+
+  // ⭐ EPIC POWER-UP SPAWNING SYSTEM - 7 AMAZING ABILITIES!
+  const spawnPowerUp = useCallback(() => {
+    if (Math.random() < 0.18) { // 18% chance to spawn power-up (increased for more fun!)
+      const powerUpTypes: PowerUp['type'][] = [
+        'score', 'shield', 'slow_time', 
+        'time_freeze', 'double_score', 'magnet', 'ghost_mode'
+      ];
+      
+      // Weighted distribution - rare power-ups are less common
+      const weights = [0.25, 0.2, 0.2, 0.1, 0.1, 0.1, 0.05]; // Total = 1.0
+      let random = Math.random();
+      let selectedType = powerUpTypes[0];
+      
+      for (let i = 0; i < weights.length; i++) {
+        random -= weights[i];
+        if (random <= 0) {
+          selectedType = powerUpTypes[i];
+          break;
+        }
+      }
+
+      const newPowerUp: PowerUp = {
+        id: `powerup_${Date.now()}`,
+        x: SCREEN_WIDTH + 50,
+        y: Math.random() * (SCREEN_HEIGHT - 200) + 100,
+        type: selectedType,
+        collected: false,
+        duration: ['time_freeze', 'double_score', 'magnet', 'ghost_mode', 'shield'].includes(selectedType) 
+                  ? (selectedType === 'time_freeze' ? 3000 : selectedType === 'ghost_mode' ? 4000 : 5000) 
+                  : undefined,
+      };
+      
+      console.log('⭐ Spawning power-up...', selectedType);
+      setPowerUps(prev => [...prev, newPowerUp]);
+    }
+  }, []);
+
+  // ⚡ EPIC POWER-UP EFFECT MANAGEMENT - GAME-CHANGING MAGIC!
+  const activatePowerUp = useCallback((type: PowerUp['type'], duration?: number) => {
+    const currentTime = Date.now();
+    
+    switch (type) {
+      case 'time_freeze':
+        console.log('❄️ TIME FREEZE ACTIVATED!');
+        setActivePowerUps(prev => ({
+          ...prev,
+          timeFreeze: { active: true, endTime: currentTime + (duration || 3000) }
+        }));
+        // 🎨 Epic visual effects
+        createParticles(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 'special', 15);
+        triggerScreenShake('heavy');
+        break;
+        
+      case 'double_score':
+        console.log('💰 DOUBLE SCORE ACTIVATED!');
+        setActivePowerUps(prev => ({
+          ...prev,
+          doubleScore: { active: true, endTime: currentTime + (duration || 5000) }
+        }));
+        createParticles(50, currentPlayerY.current, 'achievement', 12);
+        break;
+        
+      case 'magnet':
+        console.log('🧲 MAGNET ACTIVATED!');
+        setActivePowerUps(prev => ({
+          ...prev,
+          magnet: { active: true, endTime: currentTime + (duration || 5000) }
+        }));
+        createParticles(50, currentPlayerY.current, 'special', 10);
+        break;
+        
+      case 'ghost_mode':
+        console.log('👻 GHOST MODE ACTIVATED!');
+        setActivePowerUps(prev => ({
+          ...prev,
+          ghostMode: { active: true, endTime: currentTime + (duration || 4000) }
+        }));
+        createParticles(50, currentPlayerY.current, 'special', 8);
+        break;
+        
+      case 'shield':
+        console.log('🛡️ SHIELD ACTIVATED!');
+        setActivePowerUps(prev => ({
+          ...prev,
+          shield: { active: true, endTime: currentTime + (duration || 5000) }
+        }));
+        createParticles(50, currentPlayerY.current, 'special', 6);
+        break;
+        
+      case 'score':
+        console.log('💰 INSTANT SCORE BOOST!');
+        setGameState(prev => ({ ...prev, distance: prev.distance + 100 }));
+        createParticles(50, currentPlayerY.current, 'achievement', 8);
+        break;
+        
+      case 'slow_time':
+        console.log('⏰ SLOW TIME ACTIVATED!');
+        setGameState(prev => ({ ...prev, speed: Math.max(1, prev.speed - 1) }));
+        createParticles(50, currentPlayerY.current, 'special', 6);
+        break;
+    }
+    
+    // Universal effects for all power-ups
+    triggerHaptic('success');
+    playSound('power_up');
+  }, [createParticles, triggerScreenShake, triggerHaptic, playSound]);
+
+  // ⏰ POWER-UP TIMER MANAGEMENT
+  const updatePowerUpTimers = useCallback(() => {
+    const currentTime = Date.now();
+    
+    setActivePowerUps(prev => {
+      const updated = { ...prev };
+      let hasExpired = false;
+      
+      Object.keys(updated).forEach(key => {
+        const powerUp = updated[key as keyof typeof updated];
+        if (powerUp.active && currentTime >= powerUp.endTime) {
+          updated[key as keyof typeof updated] = { active: false, endTime: 0 };
+          hasExpired = true;
+          console.log(`⏰ Power-up expired: ${key}`);
+        }
+      });
+      
+      return updated;
+    });
+  }, []);
+
+  // 🧲 MAGNET EFFECT - ATTRACT NEARBY POWER-UPS!
+  const applyMagnetEffect = useCallback(() => {
+    if (!activePowerUps.magnet.active) return;
+    
+    setPowerUps(prev => prev.map(powerUp => {
+      if (powerUp.collected) return powerUp;
+      
+      const playerX = 50;
+      const playerY = currentPlayerY.current;
+      const magnetRange = 150;
+      
+      const distance = Math.sqrt(
+        Math.pow(powerUp.x - playerX, 2) + 
+        Math.pow(powerUp.y - playerY, 2)
+      );
+      
+      if (distance < magnetRange) {
+        const magnetStrength = 0.3;
+        const dx = (playerX - powerUp.x) * magnetStrength;
+        const dy = (playerY - powerUp.y) * magnetStrength;
+        
+        return {
+          ...powerUp,
+          x: powerUp.x + dx,
+          y: powerUp.y + dy,
+        };
+      }
+      
+      return powerUp;
+    }));
+  }, [activePowerUps.magnet.active]);
+
+  // 🦹‍♂️ BOSS HELPER FUNCTIONS
+  const getBossName = useCallback((type: BossType): string => {
+    switch (type) {
+      case BossType.GRAVITY_WELL: return 'Gravity Well';
+      case BossType.SPEED_DEMON: return 'Speed Demon';
+      case BossType.SIZE_SHIFTER: return 'Size Shifter';
+      case BossType.ADAPTIVE_HUNTER: return 'Adaptive Hunter';
+      case BossType.CHAOS_MASTER: return 'Chaos Master';
+      default: return 'Unknown Boss';
+    }
+  }, []);
+
+  const getBossEmoji = useCallback((type: BossType): string => {
+    switch (type) {
+      case BossType.GRAVITY_WELL: return '🌌';
+      case BossType.SPEED_DEMON: return '⚡';
+      case BossType.SIZE_SHIFTER: return '🔄';
+      case BossType.ADAPTIVE_HUNTER: return '🤖';
+      case BossType.CHAOS_MASTER: return '👹';
+      default: return '👾';
+    }
+  }, []);
+
+  // 🦹‍♂️ EPIC BOSS SPAWNING SYSTEM
+  const createBoss = useCallback((type: BossType): Boss => {
+    const bossConfigs = {
+      [BossType.GRAVITY_WELL]: {
+        width: 80,
+        height: 80,
+        health: 3,
+        color: '#9C27B0',
+        speed: 1,
+        abilityPattern: [2000, 1500, 1000], // Ability intervals by phase
+      },
+      [BossType.SPEED_DEMON]: {
+        width: 60,
+        height: 60,
+        health: 2,
+        color: '#FF5722',
+        speed: 3,
+        abilityPattern: [1500, 1000],
+      },
+      [BossType.SIZE_SHIFTER]: {
+        width: 70,
+        height: 70,
+        health: 4,
+        color: '#4CAF50',
+        speed: 1.5,
+        abilityPattern: [3000, 2000, 1500, 1000],
+      },
+      [BossType.ADAPTIVE_HUNTER]: {
+        width: 65,
+        height: 65,
+        health: 3,
+        color: '#FF9800',
+        speed: 2,
+        abilityPattern: [2500, 2000, 1500],
+      },
+      [BossType.CHAOS_MASTER]: {
+        width: 90,
+        height: 90,
+        health: 5,
+        color: '#E91E63',
+        speed: 1,
+        abilityPattern: [3500, 3000, 2500, 2000, 1500],
+      },
+    };
+
+    const config = bossConfigs[type];
+    return {
+      id: `boss_${type}_${Date.now()}`,
+      x: SCREEN_WIDTH + 100,
+      y: Math.random() * (SCREEN_HEIGHT - config.height - 200) + 100,
+      width: config.width,
+      height: config.height,
+      type,
+      health: config.health,
+      maxHealth: config.health,
+      phase: 0,
+      lastAbilityTime: Date.now(),
+      isWarning: false,
+      warningTime: 0,
+      color: config.color,
+      speed: config.speed,
+      direction: 1,
+      abilityPattern: config.abilityPattern,
+      defeated: false,
+    };
+  }, []);
+
+  const spawnBoss = useCallback(() => {
+    const distance = gameState.distance;
+    const timeSinceLastBoss = distance - lastBossSpawn;
+    
+    // Spawn boss every 500m
+    if (timeSinceLastBoss >= 500) {
+             const bossTypes = Object.values(BossType);
+       const randomType = bossTypes[Math.floor(Math.random() * bossTypes.length)];
+       
+       console.log(`[SPAWN] 🚧 New obstacle: ${randomType} at distance ${distance}m`);
+       console.log(`[BOSS] 🦹‍♂️ Boss spawned: ${getBossEmoji(randomType as BossType)} ${getBossName(randomType as BossType)}`);
+       console.log(`[BOSS] 🚨 WARNING: ${getBossName(randomType as BossType).toUpperCase()} INCOMING!`);
+      
+             // Show boss warning
+       setBossWarningActive(true);
+       setTimeout(() => setBossWarningActive(false), 3000);
+       
+       // 💥 BOSS WARNING CAMERA SHAKE!
+       triggerScreenShake('medium');
+       
+       // ⚠️ BOSS WARNING GLOW!
+       updatePlayerGlow('#FF6B00', 1.8);
+      
+      // Create and add boss
+      const newBoss = createBoss(randomType);
+      setBosses(prev => [...prev, newBoss]);
+      setLastBossSpawn(distance);
+      
+      // Spawn warning particles
+             createParticles(SCREEN_WIDTH - 100, SCREEN_HEIGHT / 2, 'special', 20);
+       playSound('achievement'); // Boss warning sound
+     }
+   }, [gameState.distance, lastBossSpawn, createBoss, createParticles, playSound]);
+
+   // 🏆 LEADERBOARD SYSTEM FUNCTIONS
+   const generateMockLeaderboard = useCallback((): LeaderboardEntry[] => {
+     const mockNames = [
+       'DragonSlayer99', 'GravityMaster', 'SpeedDemon42', 'BossHunter', 'FlipKing',
+       'QuantumPlayer', 'NinjaFlips', 'OrbitMaster', 'ChaosRider', 'StarWarrior',
+       'VelocityQueen', 'GravityWizard', 'FlightPro', 'BossTerminator', 'PhysicsMaster',
+       'SpaceRanger', 'FlipLegend', 'CosmicPlayer', 'GalaxyExplorer', 'NebulaCrusher'
+     ];
+     
+     const countries = ['🇺🇸', '🇬🇧', '🇯🇵', '🇩🇪', '🇫🇷', '🇨🇦', '🇦🇺', '🇧🇷', '🇰🇷', '🇨🇳'];
+     const gameModes = Object.values(GameMode);
+     
+     return Array.from({ length: 50 }, (_, i) => ({
+       id: `player_${i}`,
+       playerName: mockNames[Math.floor(Math.random() * mockNames.length)],
+       score: Math.floor(Math.random() * 5000) + 200,
+       distance: Math.floor(Math.random() * 3000) + 100,
+       bossesDefeated: Math.floor(Math.random() * 10),
+       gameMode: gameModes[Math.floor(Math.random() * gameModes.length)],
+       timestamp: Date.now() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000),
+       country: countries[Math.floor(Math.random() * countries.length)],
+       rank: i + 1,
+     })).sort((a, b) => b.score - a.score);
+   }, []);
+
+   const generateDailyChallenges = useCallback((): DailyChallenge[] => {
+     const challenges = [
+       {
+         title: '🏃‍♂️ Marathon Runner',
+         description: 'Travel 2000m in a single run',
+         target: 2000,
+         type: 'distance' as const,
+         reward: '🏆 Epic Skin Unlock'
+       },
+       {
+         title: '🦹‍♂️ Boss Hunter',
+         description: 'Defeat 3 bosses in one game',
+         target: 3,
+         type: 'bosses' as const,
+         reward: '💎 200 Gems'
+       },
+       {
+         title: '🌪️ Flip Master',
+         description: 'Perform 100 gravity flips',
+         target: 100,
+         type: 'flips' as const,
+         reward: '⚡ Speed Boost Trail'
+       },
+       {
+         title: '⏱️ Survival Expert',
+         description: 'Survive for 180 seconds',
+         target: 180,
+         type: 'survival_time' as const,
+         reward: '🎯 Precision Mode Unlock'
+       },
+       {
+         title: '✨ Perfect Run',
+         description: 'Complete a run without taking damage',
+         target: 1,
+         type: 'perfect_run' as const,
+         reward: '👑 Golden Crown Avatar'
+       }
+     ];
+
+     return challenges.slice(0, 3).map((challenge, i) => ({
+       id: `daily_${Date.now()}_${i}`,
+       ...challenge,
+       progress: 0,
+       completed: false,
+       expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+     }));
+   }, []);
+
+   const submitScore = useCallback(async (finalScore: number, finalDistance: number, finalBossesDefeated: number) => {
+     try {
+       console.log(`[LEADERBOARD] 🏆 Submitting score: ${finalScore} points, ${finalDistance}m, ${finalBossesDefeated} bosses`);
+       
+       const newEntry: LeaderboardEntry = {
+         id: `score_${Date.now()}`,
+         playerName,
+         score: finalScore,
+         distance: finalDistance,
+         bossesDefeated: finalBossesDefeated,
+         gameMode: gameState.currentMode,
+         timestamp: Date.now(),
+         country: '🌍', // Default country
+         rank: 1, // Will be calculated
+       };
+
+       // Add to leaderboard and sort
+       setLeaderboard(prev => {
+         const updated = [...prev, newEntry].sort((a, b) => b.score - a.score);
+         // Update ranks
+         return updated.map((entry, index) => ({ ...entry, rank: index + 1 }));
+       });
+
+       // Update player stats
+       setPlayerStats(prev => ({
+         ...prev,
+         totalGames: prev.totalGames + 1,
+         totalDistance: prev.totalDistance + finalDistance,
+         bossesDefeated: prev.bossesDefeated + finalBossesDefeated,
+         averageScore: Math.floor((prev.averageScore * prev.totalGames + finalScore) / (prev.totalGames + 1)),
+       }));
+
+       // Save to storage
+       await AsyncStorage.setItem('leaderboard', JSON.stringify(leaderboard));
+       await AsyncStorage.setItem('playerStats', JSON.stringify(playerStats));
+       
+       console.log(`[LEADERBOARD] ✅ Score submitted successfully!`);
+       
+       return true;
+     } catch (error) {
+       console.error('[LEADERBOARD] ❌ Failed to submit score:', error);
+       return false;
+     }
+   }, [playerName, gameState.currentMode, leaderboard, playerStats]);
+
+   // 🦹‍♂️ BOSS DAMAGE SYSTEM
+   const damageBoss = useCallback((boss: Boss) => {
+     const newHealth = boss.health - 1;
+     
+     if (newHealth <= 0) {
+       // Boss defeated!
+       console.log(`[BOSS] 🎉 Boss defeated: ${getBossEmoji(boss.type as BossType)} ${getBossName(boss.type as BossType)} (Survived ${((Date.now() - parseInt(boss.id.split('_')[2])) / 1000).toFixed(1)}s)`);
+       
+       // Epic defeat effects
+       createParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, 'explosion', 25);
+       
+       // 💥 EPIC BOSS DEFEAT CAMERA SHAKE!
+       triggerScreenShake('heavy');
+       
+       // 🔥 BOSS DEFEAT GLOW EXPLOSION!
+       updatePlayerGlow('#FF4444', 3.0);
+       
+       setBossesDefeated(prev => prev + 1);
+       playSound('achievement');
+       
+       // Mark as defeated and remove after animation
+       setBosses(prev => prev.map(b => 
+         b.id === boss.id ? { ...b, defeated: true } : b
+       ));
+       
+       setTimeout(() => {
+         setBosses(prev => prev.filter(b => b.id !== boss.id));
+       }, 1000);
+       
+       return true; // Boss defeated
+     } else {
+       // Damage boss and advance phase
+       const newPhase = boss.maxHealth - newHealth;
+       setBosses(prev => prev.map(b => 
+         b.id === boss.id ? { 
+           ...b, 
+           health: newHealth, 
+           phase: newPhase,
+           // Boss gets angrier and faster when damaged
+           speed: b.speed * 1.2,
+           color: newHealth === 1 ? '#FF0000' : b.color
+         } : b
+       ));
+       
+       // Damage particle effects
+       createParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, 'flip', 10);
+       
+       return false; // Boss still alive
+     }
+   }, [createParticles, playSound, getBossEmoji, getBossName]);
 
   // 🎮 GAME LOOP
   useEffect(() => {
@@ -678,9 +1673,12 @@ export default function App() {
             break;
         }
         
+        // 💰 DOUBLE SCORE POWER-UP EFFECT!
+        const scoreMultiplier = activePowerUps.doubleScore.active ? 2.0 : 1.0;
+        
         return {
           ...prev,
-          distance: prev.distance + (prev.speed * 0.1 * distanceMultiplier),
+          distance: prev.distance + (prev.speed * 0.1 * distanceMultiplier * scoreMultiplier),
           speed: (BASE_SPEED + (prev.distance * 0.001)) * speedMultiplier,
           skill: Math.min(10, (prev.distance / 100) * skillGainMultiplier),
           flow: Math.min(100, (prev.distance / 10) % 100),
@@ -688,30 +1686,175 @@ export default function App() {
         };
       });
 
-      // Move obstacles
+      // Move obstacles (affected by time freeze!)
       setObstacles(prev => 
         prev.map(obstacle => ({
           ...obstacle,
-          x: obstacle.x - gameState.speed,
+          x: obstacle.x - (gameState.speed * timeMultiplier),
         })).filter(obstacle => obstacle.x > -100)
       );
 
-      // Check collisions
-      if (checkCollision()) {
-        gameOver();
-      }
-    }, 16); // ~60fps
+      // 🌟 MOVE BACKGROUND ELEMENTS - PARALLAX MAGIC!
+      setBackgroundStars(prev => 
+        prev.map(star => ({
+          ...star,
+          x: star.x - (star.speed * gameState.speed * 0.3), // Parallax effect
+        })).filter(star => star.x > -100)
+      );
 
-    // Spawn obstacles
-    obstacleSpawnRef.current = setInterval(() => {
-      spawnObstacle();
-    }, 2000);
+      setBackgroundPlanets(prev => 
+        prev.map(planet => ({
+          ...planet,
+          x: planet.x - (planet.speed * gameState.speed * 0.1), // Slower parallax for planets
+        })).filter(planet => planet.x > -200)
+      );
+
+      // Spawn new background elements
+      if (Math.random() < 0.3) {
+        spawnNewBackgroundElement();
+      }
+
+      // Move power-ups (affected by time freeze!)
+      const timeMultiplier = activePowerUps.timeFreeze.active ? 0.2 : 1.0;
+      setPowerUps(prev => 
+        prev.map(powerUp => ({
+          ...powerUp,
+          x: powerUp.x - (gameState.speed * timeMultiplier),
+        })).filter(powerUp => powerUp.x > -100)
+      );
+
+      // ⏰ Update power-up timers
+      updatePowerUpTimers();
+      
+      // 🧲 Apply magnet effect
+      applyMagnetEffect();
+
+      // Move and update bosses
+      setBosses(prev => 
+        prev.map(boss => {
+          if (boss.defeated) return boss;
+          
+          let newY = boss.y;
+          let newDirection = boss.direction;
+          
+          // Boss AI movement patterns
+          switch (boss.type) {
+            case BossType.GRAVITY_WELL:
+              // Slow vertical oscillation
+              newY = boss.y + Math.sin(Date.now() / 1000) * boss.speed;
+              break;
+            case BossType.SPEED_DEMON:
+              // Fast up-down movement
+              if (boss.y <= 100 || boss.y >= SCREEN_HEIGHT - boss.height - 100) {
+                newDirection = -boss.direction;
+              }
+              newY = boss.y + (boss.speed * 3 * newDirection);
+              break;
+            case BossType.SIZE_SHIFTER:
+              // Smooth sine wave movement
+              newY = (SCREEN_HEIGHT / 2) + Math.sin(Date.now() / 800) * 150;
+              break;
+            case BossType.ADAPTIVE_HUNTER:
+              // Chase player Y position
+              const playerTargetY = currentPlayerY.current;
+              const diffY = playerTargetY - (boss.y + boss.height / 2);
+              newY = boss.y + Math.sign(diffY) * Math.min(Math.abs(diffY), boss.speed * 2);
+              break;
+            case BossType.CHAOS_MASTER:
+              // Random erratic movement
+              newY = boss.y + (Math.random() - 0.5) * boss.speed * 4;
+              break;
+          }
+          
+          // Keep bosses within screen bounds
+          newY = Math.max(100, Math.min(SCREEN_HEIGHT - boss.height - 100, newY));
+          
+          return {
+            ...boss,
+            x: boss.x - gameState.speed * 0.5, // Bosses move slower than obstacles
+            y: newY,
+            direction: newDirection,
+          };
+        }).filter(boss => boss.x > -boss.width - 50)
+      );
+
+      // Check collisions (with Epic Power-Up Protection!)
+      const hitObstacle = checkCollision();
+      if (hitObstacle) {
+        // 👻 GHOST MODE - Phase through obstacles!
+        if (activePowerUps.ghostMode.active) {
+          console.log('👻 Ghost Mode: Phased through obstacle!');
+          createParticles(50, currentPlayerY.current, 'special', 6);
+        }
+        // 🛡️ SHIELD - Block one hit!
+        else if (activePowerUps.shield.active) {
+          console.log('🛡️ Shield deflected obstacle!');
+          setActivePowerUps(prev => ({
+            ...prev,
+            shield: { active: false, endTime: 0 }
+          }));
+          createParticles(50, currentPlayerY.current, 'explosion', 8);
+          triggerScreenShake('medium');
+        }
+        // 💀 Game Over!
+        else {
+          gameOver();
+        }
+      }
+
+      // Check boss collisions
+      const hitBoss = checkBossCollision();
+      if (hitBoss && !hitBoss.defeated) {
+        const bossDefeated = damageBoss(hitBoss);
+        if (!bossDefeated) {
+          // Player survives hitting boss but takes damage
+          triggerHaptic('heavy');
+          // Knockback effect - could reduce speed temporarily
+          setGameState(prev => ({ ...prev, speed: Math.max(1, prev.speed * 0.8) }));
+        }
+      }
+
+      // Check power-up collisions
+      const collectedPowerUp = checkPowerUpCollision();
+      if (collectedPowerUp) {
+        // ✨ EPIC POWER-UP COLLECTED PARTICLE BURST!
+        createParticles(collectedPowerUp.x, collectedPowerUp.y, 'achievement', 8);
+        
+        // 💥 POWER-UP COLLECTION CAMERA SHAKE!
+        triggerScreenShake('light');
+        
+        // ⚡ ACTIVATE THE EPIC POWER-UP!
+        activatePowerUp(collectedPowerUp.type, collectedPowerUp.duration);
+        
+        // Remove collected power-up
+        setPowerUps(prev => prev.filter(p => p.id !== collectedPowerUp.id));
+      }
+
+      // Spawn bosses at intervals
+      spawnBoss();
+    }, 16); // ~60fps
 
     return () => {
       if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+    };
+      }, [gameState.isPlaying, activePowerUps, updatePowerUpTimers, applyMagnetEffect, activatePowerUp]);
+
+  // 🚧 SEPARATE OBSTACLE SPAWNING LOOP (prevents interval conflicts)
+  useEffect(() => {
+    if (!gameState.isPlaying) return;
+
+    // Spawn obstacles and power-ups - MORE CHALLENGE! 💥
+    obstacleSpawnRef.current = setInterval(() => {
+      spawnObstacle();
+      if (gameState.currentMode === GameMode.POWER_UP_RUSH || Math.random() < 0.4) {
+        spawnPowerUp();
+      }
+    }, 1500); // 🔥 FASTER SPAWNING - every 1.5 seconds!
+
+    return () => {
       if (obstacleSpawnRef.current) clearInterval(obstacleSpawnRef.current);
     };
-  }, [gameState.isPlaying, gameState.speed, checkCollision, gameOver, spawnObstacle]);
+  }, [gameState.isPlaying, gameState.currentMode]);
 
   // 🎪 PULSING ANIMATION FOR MAIN MENU
   useEffect(() => {
@@ -735,11 +1878,30 @@ export default function App() {
     }
   }, [gameState.isPlaying, gameState.isGameOver, pulseAnim]);
 
-  // 💾 LOAD HIGH SCORE ON MOUNT
+  // 💾 LOAD HIGH SCORE AND SETTINGS ON MOUNT
   useEffect(() => {
     loadHighScore();
     loadLanguage();
   }, [loadHighScore, loadLanguage]);
+
+  // ⚙️ LOAD SETTINGS ON MOUNT
+  useEffect(() => {
+    const initializeSettings = async () => {
+      try {
+        const savedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
+        if (savedSettings) {
+          const parsedSettings = JSON.parse(savedSettings) as GameSettings;
+          setSettings(parsedSettings);
+          setAudioEnabled(parsedSettings.audioEnabled);
+          setCurrentLanguage(parsedSettings.language);
+          console.log('⚙️ Settings loaded successfully!');
+        }
+      } catch (error) {
+        console.error('❌ Failed to load settings:', error);
+      }
+    };
+    initializeSettings();
+  }, []);
 
   // 🎮 TOUCH HANDLER
   const handleTouch = useCallback(() => {
@@ -752,12 +1914,305 @@ export default function App() {
     }
   }, [gameState.isPlaying, gameState.isGameOver, flipPlayer, startGame]);
 
+  // 🌟 PARALLAX BACKGROUND STATE - EPIC VISUAL EFFECTS!
+  interface BackgroundStar {
+    id: string;
+    x: number;
+    y: number;
+    size: number;
+    opacity: number;
+    speed: number;
+    color: string;
+  }
+
+  interface BackgroundPlanet {
+    id: string;
+    x: number;
+    y: number;
+    size: number;
+    color: string;
+    speed: number;
+    type: 'planet' | 'moon' | 'asteroid';
+  }
+
+  const [backgroundStars, setBackgroundStars] = useState<BackgroundStar[]>([]);
+  const [backgroundPlanets, setBackgroundPlanets] = useState<BackgroundPlanet[]>([]);
+
+  // 🌈 DYNAMIC LIGHTING SYSTEM - EPIC GLOW EFFECTS!
+  const playerGlow = useRef(new Animated.Value(1)).current;
+  const [currentPlayerGlow, setCurrentPlayerGlow] = useState('#FFD60A');
+
+  // 🔥 PARTICLE TRAIL SYSTEM - EPIC MOVEMENT TRAILS!
+  interface TrailParticle {
+    id: string;
+    x: number;
+    y: number;
+    life: number;
+    maxLife: number;
+    size: number;
+    color: string;
+    opacity: number;
+  }
+
+  const [playerTrail, setPlayerTrail] = useState<TrailParticle[]>([]);
+  const trailSpawnTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // 🌈 DYNAMIC LIGHTING EFFECTS - REACTIVE GLOW SYSTEM!
+  const updatePlayerGlow = useCallback((color: string, intensity: number = 1) => {
+    setCurrentPlayerGlow(color);
+    Animated.sequence([
+      Animated.timing(playerGlow, {
+        toValue: intensity * 1.5,
+        duration: 150,
+        useNativeDriver: false,
+      }),
+      Animated.timing(playerGlow, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [playerGlow]);
+
+  const pulsePlayerGlow = useCallback(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(playerGlow, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(playerGlow, {
+          toValue: 0.8,
+          duration: 1000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, [playerGlow]);
+
+
+
+  // 🔥 TRAIL PARTICLE SYSTEM - EPIC MOVEMENT EFFECTS!
+  const spawnTrailParticle = useCallback(() => {
+    const newTrail: TrailParticle = {
+      id: `trail_${Date.now()}_${Math.random()}`,
+      x: 50, // Player X position
+      y: currentPlayerY.current,
+      life: 0,
+      maxLife: 30 + Math.random() * 20, // 30-50 frames
+      size: 8 + Math.random() * 6,
+      color: currentPlayerGlow,
+      opacity: 0.7 + Math.random() * 0.3,
+    };
+    
+    setPlayerTrail(prev => [...prev, newTrail]);
+  }, [currentPlayerGlow]);
+
+  const updateTrailParticles = useCallback(() => {
+    setPlayerTrail(prev => 
+      prev.map(trail => ({
+        ...trail,
+        life: trail.life + 1,
+        x: trail.x - 3, // Move particles backwards
+        opacity: Math.max(0, trail.opacity * (1 - trail.life / trail.maxLife)),
+        size: trail.size * (1 - trail.life / (trail.maxLife * 2)),
+      })).filter(trail => trail.life < trail.maxLife && trail.opacity > 0.1)
+    );
+  }, []);
+
+  const startPlayerTrail = useCallback(() => {
+    if (trailSpawnTimer.current) return;
+    
+    trailSpawnTimer.current = setInterval(() => {
+      spawnTrailParticle();
+      updateTrailParticles();
+    }, 50); // Spawn every 50ms for smooth trail
+  }, [spawnTrailParticle, updateTrailParticles]);
+
+  const stopPlayerTrail = useCallback(() => {
+    if (trailSpawnTimer.current) {
+      clearInterval(trailSpawnTimer.current);
+      trailSpawnTimer.current = null;
+    }
+    setPlayerTrail([]);
+  }, []);
+
+  // 🎊 PARTICLE EFFECTS SYSTEM
+  const spawnParticles = useCallback((x: number, y: number, color: string, count: number = 8) => {
+    const newParticles: Particle[] = [];
+    
+    for (let i = 0; i < count; i++) {
+      newParticles.push({
+        id: `particle_${Date.now()}_${i}`,
+        x: x + (Math.random() - 0.5) * 20,
+        y: y + (Math.random() - 0.5) * 20,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        size: 4 + Math.random() * 6,
+        color,
+        life: 1,
+        maxLife: 60 + Math.random() * 40,
+        type: 'special',
+        opacity: 0.8 + Math.random() * 0.2,
+      });
+    }
+    
+    setParticles(prev => [...prev, ...newParticles]);
+  }, []);
+
+  // ⚙️ COMPREHENSIVE SETTINGS SYSTEM - EPIC CUSTOMIZATION!
+  interface GameSettings {
+    // Audio Settings
+    masterVolume: number;
+    soundEffectsVolume: number;
+    musicVolume: number;
+    audioEnabled: boolean;
+    
+    // Graphics Settings
+    particleQuality: 'low' | 'medium' | 'high' | 'ultra';
+    backgroundEffects: boolean;
+    screenShake: boolean;
+    
+    // Control Settings
+    hapticFeedback: boolean;
+    touchSensitivity: number;
+    
+    // Game Settings
+    showDebugInfo: boolean;
+    autoSaveProgress: boolean;
+    confirmGameExit: boolean;
+    
+    // Display Settings
+    language: Language;
+    theme: 'dark' | 'light' | 'auto';
+  }
+
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<GameSettings>({
+    masterVolume: 0.8,
+    soundEffectsVolume: 0.7,
+    musicVolume: 0.6,
+    audioEnabled: true,
+    particleQuality: 'high',
+    backgroundEffects: true,
+    screenShake: true,
+    hapticFeedback: true,
+    touchSensitivity: 1.0,
+    showDebugInfo: false,
+    autoSaveProgress: true,
+    confirmGameExit: false,
+    language: Language.ENGLISH,
+    theme: 'dark',
+  });
+
+  // ⚙️ SETTINGS MANAGEMENT SYSTEM - EPIC CUSTOMIZATION CONTROL!
+  const saveSettings = useCallback(async (newSettings: GameSettings) => {
+    try {
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+      setSettings(newSettings);
+      console.log('⚙️ Settings saved successfully!');
+    } catch (error) {
+      console.error('❌ Failed to save settings:', error);
+    }
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const savedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings) as GameSettings;
+        setSettings(parsedSettings);
+        setAudioEnabled(parsedSettings.audioEnabled);
+        setCurrentLanguage(parsedSettings.language);
+        console.log('⚙️ Settings loaded successfully!');
+      }
+    } catch (error) {
+      console.error('❌ Failed to load settings:', error);
+    }
+  }, []);
+
+  const updateSetting = useCallback(<K extends keyof GameSettings>(
+    key: K,
+    value: GameSettings[K]
+  ) => {
+    const newSettings = { ...settings, [key]: value };
+    saveSettings(newSettings);
+    
+    // Apply immediate effects for certain settings
+    if (key === 'audioEnabled') {
+      setAudioEnabled(value as boolean);
+    }
+    if (key === 'language') {
+      setCurrentLanguage(value as Language);
+    }
+  }, [settings, saveSettings]);
+
+  const resetSettings = useCallback(() => {
+    const defaultSettings: GameSettings = {
+      masterVolume: 0.8,
+      soundEffectsVolume: 0.7,
+      musicVolume: 0.6,
+      audioEnabled: true,
+      particleQuality: 'high',
+      backgroundEffects: true,
+      screenShake: true,
+      hapticFeedback: true,
+      touchSensitivity: 1.0,
+      showDebugInfo: false,
+      autoSaveProgress: true,
+      confirmGameExit: false,
+      language: Language.ENGLISH,
+      theme: 'dark',
+    };
+    saveSettings(defaultSettings);
+  }, [saveSettings]);
+
   return (
     <TouchableWithoutFeedback onPress={handleTouch}>
       <View style={styles.container}>
         <StatusBar style="light" />
         
         <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenShake }] }]}>
+          {/* 🌟 PARALLAX BACKGROUND - EPIC SPACE ENVIRONMENT! */}
+          {/* Background Stars - Far layer */}
+          {backgroundStars.map(star => (
+            <View
+              key={star.id}
+              style={[
+                styles.backgroundStar,
+                {
+                  left: star.x,
+                  top: star.y,
+                  width: star.size,
+                  height: star.size,
+                  backgroundColor: star.color,
+                  opacity: star.opacity,
+                },
+              ]}
+            />
+          ))}
+
+          {/* Background Planets - Mid layer */}
+          {backgroundPlanets.map(planet => (
+            <View
+              key={planet.id}
+              style={[
+                styles.backgroundPlanet,
+                planet.type === 'planet' && styles.backgroundPlanetRound,
+                planet.type === 'moon' && styles.backgroundMoon,
+                planet.type === 'asteroid' && styles.backgroundAsteroid,
+                {
+                  left: planet.x,
+                  top: planet.y,
+                  width: planet.size,
+                  height: planet.size,
+                  backgroundColor: planet.color,
+                },
+              ]}
+            />
+          ))}
+
           {/* 🎮 GAMEPLAY SCREEN */}
           {gameState.isPlaying && (
             <>
@@ -766,7 +2221,50 @@ export default function App() {
                 <Text style={styles.distanceText}>{Math.floor(gameState.distance)}m</Text>
                 <Text style={styles.speedText}>x{gameState.speed.toFixed(1)}</Text>
                 <Text style={styles.bestText}>Best: {gameState.highScore}m</Text>
+                {bossesDefeated > 0 && (
+                  <Text style={styles.bossCounter}>🦹‍♂️ Bosses: {bossesDefeated}</Text>
+                )}
+
+                {/* ⚡ ACTIVE POWER-UPS INDICATOR - EPIC STATUS! */}
+                <View style={styles.powerUpIndicators}>
+                  {activePowerUps.timeFreeze.active && (
+                    <View style={[styles.powerUpIndicator, { backgroundColor: '#00FFFF' }]}>
+                      <Text style={styles.powerUpIndicatorIcon}>❄️</Text>
+                    </View>
+                  )}
+                  {activePowerUps.doubleScore.active && (
+                    <View style={[styles.powerUpIndicator, { backgroundColor: '#FFD700' }]}>
+                      <Text style={styles.powerUpIndicatorIcon}>💎</Text>
+                    </View>
+                  )}
+                  {activePowerUps.magnet.active && (
+                    <View style={[styles.powerUpIndicator, { backgroundColor: '#FF6B35' }]}>
+                      <Text style={styles.powerUpIndicatorIcon}>🧲</Text>
+                    </View>
+                  )}
+                  {activePowerUps.ghostMode.active && (
+                    <View style={[styles.powerUpIndicator, { backgroundColor: '#9C27B0' }]}>
+                      <Text style={styles.powerUpIndicatorIcon}>👻</Text>
+                    </View>
+                  )}
+                  {activePowerUps.shield.active && (
+                    <View style={[styles.powerUpIndicator, { backgroundColor: '#22C55E' }]}>
+                      <Text style={styles.powerUpIndicatorIcon}>🛡️</Text>
+                    </View>
+                  )}
+                </View>
+
+                <Text style={styles.debugText}>🚧 Obstacles: {obstacles.length} | ⭐ Power-ups: {powerUps.length}</Text>
+                <Text style={styles.debugText}>🎯 Player Y: {Math.round(currentPlayerY.current)}</Text>
               </View>
+
+              {/* 🚨 BOSS WARNING SYSTEM */}
+              {bossWarningActive && (
+                <View style={styles.bossWarning}>
+                  <Text style={styles.bossWarningText}>⚠️ BOSS INCOMING! ⚠️</Text>
+                  <Text style={styles.bossWarningSubtext}>Prepare for battle!</Text>
+                </View>
+              )}
 
               {/* Skill/Flow Meter (from screenshots) */}
               <View style={styles.skillMeter}>
@@ -777,7 +2275,25 @@ export default function App() {
                 </View>
               </View>
 
-              {/* Player */}
+              {/* 🔥 Player Trail Particles */}
+              {playerTrail.map(trail => (
+                <View
+                  key={trail.id}
+                  style={[
+                    styles.trailParticle,
+                    {
+                      left: trail.x - trail.size / 2,
+                      top: trail.y - trail.size / 2,
+                      width: trail.size,
+                      height: trail.size,
+                      backgroundColor: trail.color,
+                      opacity: trail.opacity,
+                    },
+                  ]}
+                />
+              ))}
+
+              {/* Player with Dynamic Glow */}
               <Animated.View
                 style={[
                   styles.player,
@@ -791,6 +2307,23 @@ export default function App() {
                         outputRange: ['0deg', '360deg'],
                       }) },
                     ],
+                    shadowColor: currentPlayerGlow,
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: playerGlow.interpolate({
+                      inputRange: [0.8, 3],
+                      outputRange: [0.5, 1],
+                      extrapolate: 'clamp',
+                    }),
+                    shadowRadius: playerGlow.interpolate({
+                      inputRange: [0.8, 3],
+                      outputRange: [10, 30],
+                      extrapolate: 'clamp',
+                    }),
+                    elevation: playerGlow.interpolate({
+                      inputRange: [0.8, 3],
+                      outputRange: [10, 30],
+                      extrapolate: 'clamp',
+                    }),
                   },
                 ]}
               />
@@ -807,6 +2340,145 @@ export default function App() {
                       width: obstacle.width,
                       height: obstacle.height,
                       backgroundColor: obstacle.color,
+                    },
+                  ]}
+                />
+              ))}
+
+              {/* ⭐ POWER-UPS - The epic rewards! */}
+              {powerUps.map(powerUp => {
+                // ⚡ EPIC POWER-UP VISUAL SYSTEM!
+                const getPowerUpColor = (type: PowerUp['type']) => {
+                  switch (type) {
+                    case 'score': return '#FFD60A';
+                    case 'shield': return '#22C55E';
+                    case 'slow_time': return '#8B5CF6';
+                    case 'time_freeze': return '#00FFFF';
+                    case 'double_score': return '#FFD700';
+                    case 'magnet': return '#FF6B35';
+                    case 'ghost_mode': return '#9C27B0';
+                    default: return '#FFD60A';
+                  }
+                };
+
+                const getPowerUpIcon = (type: PowerUp['type']) => {
+                  switch (type) {
+                    case 'score': return '💰';
+                    case 'shield': return '🛡️';
+                    case 'slow_time': return '⏰';
+                    case 'time_freeze': return '❄️';
+                    case 'double_score': return '💎';
+                    case 'magnet': return '🧲';
+                    case 'ghost_mode': return '👻';
+                    default: return '💰';
+                  }
+                };
+
+                return (
+                  <View
+                    key={powerUp.id}
+                    style={[
+                      styles.powerUp,
+                      {
+                        left: powerUp.x - POWERUP_SIZE / 2,
+                        top: powerUp.y - POWERUP_SIZE / 2,
+                        backgroundColor: getPowerUpColor(powerUp.type),
+                        shadowColor: getPowerUpColor(powerUp.type),
+                      },
+                    ]}
+                  >
+                    <Text style={styles.powerUpIcon}>
+                      {getPowerUpIcon(powerUp.type)}
+                    </Text>
+                  </View>
+                );
+              })}
+
+              {/* 🦹‍♂️ EPIC BOSS BATTLES! */}
+              {bosses.map(boss => (
+                <View
+                  key={boss.id}
+                  style={[
+                    styles.boss,
+                    {
+                      left: boss.x,
+                      top: boss.y,
+                      width: boss.width,
+                      height: boss.height,
+                      backgroundColor: boss.color,
+                      opacity: boss.defeated ? 0.3 : 1,
+                      borderColor: boss.health === 1 ? '#FF0000' : '#FFFFFF',
+                      shadowColor: boss.color,
+                      transform: [
+                        { scale: boss.defeated ? 0.8 : 1 },
+                        { rotate: boss.type === 'chaos_master' ? `${Date.now() / 50}deg` : '0deg' }
+                      ],
+                    },
+                  ]}
+                >
+                  <Text style={styles.bossIcon}>
+                    {getBossEmoji(boss.type as BossType)}
+                  </Text>
+                  
+                  {/* Boss health indicator */}
+                  <View style={styles.bossHealthBar}>
+                    <View style={[
+                      styles.bossHealthFill,
+                      { 
+                        width: `${(boss.health / boss.maxHealth) * 100}%`,
+                        backgroundColor: boss.health === 1 ? '#FF0000' : '#22C55E'
+                      }
+                    ]} />
+                  </View>
+                  
+                  {/* Boss phase indicator */}
+                  <Text style={styles.bossPhase}>
+                    {Array.from({ length: boss.maxHealth }, (_, i) => 
+                      i < boss.health ? '❤️' : '💔'
+                    ).join('')}
+                  </Text>
+                </View>
+              ))}
+
+              {/* ✨ SPECTACULAR PARTICLE EFFECTS */}
+              {/* Trail Particles */}
+              {trailParticles.map(trail => (
+                <View
+                  key={trail.id}
+                  style={[
+                    styles.particle,
+                    {
+                      left: trail.x - trail.size / 2,
+                      top: trail.y - trail.size / 2,
+                      width: trail.size,
+                      height: trail.size,
+                      backgroundColor: trail.color,
+                      opacity: trail.opacity,
+                      borderRadius: trail.size / 2,
+                    },
+                  ]}
+                />
+              ))}
+
+              {/* Regular Particles */}
+              {particles.map(particle => (
+                <View
+                  key={particle.id}
+                  style={[
+                    styles.particle,
+                    {
+                      left: particle.x - particle.size / 2,
+                      top: particle.y - particle.size / 2,
+                      width: particle.size,
+                      height: particle.size,
+                      backgroundColor: particle.color,
+                      opacity: particle.opacity,
+                      borderRadius: particle.size / 2,
+                      shadowColor: particle.color,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: particle.size / 2,
+                      elevation: 5,
                     },
                   ]}
                 />
@@ -913,6 +2585,20 @@ export default function App() {
                      {currentLanguage === Language.ENGLISH ? 'English' :
                       currentLanguage === Language.CZECH ? 'Čeština' : 'Español'}
                    </Text>
+                 </TouchableOpacity>
+
+                 {/* ⚙️ Settings Card - EPIC CUSTOMIZATION! */}
+                 <TouchableOpacity 
+                   style={[styles.menuCard, styles.settingsCard]}
+                   onPress={() => setShowSettings(true)}
+                   activeOpacity={0.8}
+                 >
+                   <Text style={styles.cardEmoji}>⚙️</Text>
+                   <View style={styles.cardBadge}>
+                     <Text style={styles.cardBadgeText}>PRO</Text>
+                   </View>
+                   <Text style={styles.cardTitle}>Settings</Text>
+                   <Text style={styles.cardDescription}>Audio • Graphics • Controls</Text>
                  </TouchableOpacity>
 
                  {/* Share Card */}
@@ -1049,6 +2735,207 @@ export default function App() {
                </Animated.View>
              </View>
            )}
+
+        {/* 🌍 LANGUAGE SELECTOR MODAL */}
+        <Modal visible={showLanguageSelector} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.achievementHeader}>
+                <Text style={styles.modalTitle}>{t.selectLanguage}</Text>
+                <TouchableOpacity onPress={() => setShowLanguageSelector(false)}>
+                  <Text style={styles.closeButton}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.languageOptions}>
+                {Object.values(Language).map(language => (
+                  <TouchableOpacity
+                    key={language}
+                    style={[
+                      styles.languageOption,
+                      currentLanguage === language && styles.languageOptionSelected
+                    ]}
+                    onPress={() => {
+                      setCurrentLanguage(language);
+                      saveLanguage(language);
+                      setShowLanguageSelector(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.languageOptionEmoji}>
+                      {language === Language.ENGLISH ? '🇺🇸' :
+                       language === Language.CZECH ? '🇨🇿' : '🇪🇸'}
+                    </Text>
+                    <View style={styles.languageOptionText}>
+                      <Text style={styles.languageOptionName}>
+                        {language === Language.ENGLISH ? 'English' :
+                         language === Language.CZECH ? 'Čeština' : 'Español'}
+                      </Text>
+                      <Text style={styles.languageOptionCode}>
+                        {language === Language.ENGLISH ? 'EN' :
+                         language === Language.CZECH ? 'CS' : 'ES'}
+                      </Text>
+                    </View>
+                    {currentLanguage === language && (
+                      <Text style={styles.languageOptionCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ⚙️ COMPREHENSIVE SETTINGS MODAL - EPIC CUSTOMIZATION! */}
+        <Modal visible={showSettings} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.achievementHeader}>
+                <Text style={styles.modalTitle}>⚙️ Game Settings</Text>
+                <TouchableOpacity onPress={() => setShowSettings(false)}>
+                  <Text style={styles.closeButton}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.settingsContainer} showsVerticalScrollIndicator={false}>
+                {/* 🔊 AUDIO SETTINGS */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingSectionTitle}>🔊 Audio Settings</Text>
+                  
+                  <View style={styles.settingItem}>
+                    <Text style={styles.settingLabel}>Master Volume</Text>
+                    <View style={styles.sliderContainer}>
+                      <Text style={styles.sliderValue}>{Math.round(settings.masterVolume * 100)}%</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.settingItem}>
+                    <Text style={styles.settingLabel}>Sound Effects</Text>
+                    <View style={styles.sliderContainer}>
+                      <Text style={styles.sliderValue}>{Math.round(settings.soundEffectsVolume * 100)}%</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.settingItem}>
+                    <Text style={styles.settingLabel}>Music Volume</Text>
+                    <View style={styles.sliderContainer}>
+                      <Text style={styles.sliderValue}>{Math.round(settings.musicVolume * 100)}%</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity 
+                    style={[styles.settingToggle, settings.audioEnabled && styles.settingToggleActive]}
+                    onPress={() => updateSetting('audioEnabled', !settings.audioEnabled)}
+                  >
+                    <Text style={styles.settingToggleText}>
+                      {settings.audioEnabled ? '🔊' : '🔇'} Audio {settings.audioEnabled ? 'Enabled' : 'Disabled'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* 🎨 GRAPHICS SETTINGS */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingSectionTitle}>🎨 Graphics Settings</Text>
+                  
+                  <View style={styles.settingItem}>
+                    <Text style={styles.settingLabel}>Particle Quality</Text>
+                    <View style={styles.segmentedControl}>
+                      {(['low', 'medium', 'high', 'ultra'] as const).map(quality => (
+                        <TouchableOpacity
+                          key={quality}
+                          style={[
+                            styles.segmentButton,
+                            settings.particleQuality === quality && styles.segmentButtonActive
+                          ]}
+                          onPress={() => updateSetting('particleQuality', quality)}
+                        >
+                          <Text style={[
+                            styles.segmentButtonText,
+                            settings.particleQuality === quality && styles.segmentButtonTextActive
+                          ]}>
+                            {quality.charAt(0).toUpperCase() + quality.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <TouchableOpacity 
+                    style={[styles.settingToggle, settings.backgroundEffects && styles.settingToggleActive]}
+                    onPress={() => updateSetting('backgroundEffects', !settings.backgroundEffects)}
+                  >
+                    <Text style={styles.settingToggleText}>
+                      🌟 Background Effects {settings.backgroundEffects ? 'On' : 'Off'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.settingToggle, settings.screenShake && styles.settingToggleActive]}
+                    onPress={() => updateSetting('screenShake', !settings.screenShake)}
+                  >
+                    <Text style={styles.settingToggleText}>
+                      📳 Screen Shake {settings.screenShake ? 'On' : 'Off'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* 🎮 CONTROL SETTINGS */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingSectionTitle}>🎮 Control Settings</Text>
+                  
+                  <TouchableOpacity 
+                    style={[styles.settingToggle, settings.hapticFeedback && styles.settingToggleActive]}
+                    onPress={() => updateSetting('hapticFeedback', !settings.hapticFeedback)}
+                  >
+                    <Text style={styles.settingToggleText}>
+                      📳 Haptic Feedback {settings.hapticFeedback ? 'On' : 'Off'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.settingItem}>
+                    <Text style={styles.settingLabel}>Touch Sensitivity</Text>
+                    <View style={styles.sliderContainer}>
+                      <Text style={styles.sliderValue}>{settings.touchSensitivity.toFixed(1)}x</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 🎯 GAME SETTINGS */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingSectionTitle}>🎯 Game Settings</Text>
+                  
+                  <TouchableOpacity 
+                    style={[styles.settingToggle, settings.showDebugInfo && styles.settingToggleActive]}
+                    onPress={() => updateSetting('showDebugInfo', !settings.showDebugInfo)}
+                  >
+                    <Text style={styles.settingToggleText}>
+                      🐛 Debug Info {settings.showDebugInfo ? 'On' : 'Off'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.settingToggle, settings.autoSaveProgress && styles.settingToggleActive]}
+                    onPress={() => updateSetting('autoSaveProgress', !settings.autoSaveProgress)}
+                  >
+                    <Text style={styles.settingToggleText}>
+                      💾 Auto Save {settings.autoSaveProgress ? 'On' : 'Off'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* 🚨 RESET SETTINGS */}
+                <View style={styles.settingsSection}>
+                  <TouchableOpacity 
+                    style={styles.resetButton}
+                    onPress={resetSettings}
+                  >
+                    <Text style={styles.resetButtonText}>🔄 Reset to Defaults</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         {/* 🎮 MODE SELECTION MODAL (from Screenshot 10) */}
         <Modal visible={showModeSelection} animationType="slide" transparent>
@@ -1339,7 +3226,17 @@ export default function App() {
               <ScrollView style={styles.achievementList}>
                 <Text style={styles.achievementCategory}>DISTANCE</Text>
                 
-                                 <View style={[styles.achievementItem, totalFlips >= 1 && styles.achievementUnlocked]}>
+                                 <TouchableOpacity 
+                   style={[styles.achievementItem, totalFlips >= 1 && styles.achievementUnlocked]}
+                   onPress={() => {
+                     if (totalFlips >= 1) {
+                       // ✨ ACHIEVEMENT CELEBRATION PARTICLES!
+                       createParticles(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 'achievement', 12);
+                       playSound('achievement');
+                     }
+                   }}
+                   activeOpacity={0.8}
+                 >
                    <Text style={styles.achievementIcon}>{totalFlips >= 1 ? '✅' : '🔒'}</Text>
                    <View style={styles.achievementInfo}>
                      <Text style={styles.achievementTitle}>{t.firstFlip}</Text>
@@ -1348,7 +3245,7 @@ export default function App() {
                        <Text style={styles.achievementProgressText}>{Math.min(totalFlips, 1)} / 1</Text>
                      </View>
                    </View>
-                 </View>
+                 </TouchableOpacity>
 
                  <View style={[styles.achievementItem, gameState.highScore >= 100 && styles.achievementUnlocked]}>
                    <Text style={styles.achievementIcon}>{gameState.highScore >= 100 ? '✅' : '🔒'}</Text>
@@ -1440,6 +3337,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#CCCCCC',
   },
+  bossCounter: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#E91E63',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  debugText: {
+    fontSize: 10,
+    color: '#00FF00',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+
+  // 🚨 BOSS WARNING STYLES
+  bossWarning: {
+    position: 'absolute',
+    top: SCREEN_HEIGHT / 2 - 50,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 0, 0, 0.9)',
+    padding: 15,
+    borderRadius: 15,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    zIndex: 200,
+    shadowColor: '#FF0000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  bossWarningText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  bossWarningSubtext: {
+    fontSize: 14,
+    color: '#FFCCCC',
+    textAlign: 'center',
+    marginTop: 5,
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
 
   // 📊 SKILL METER
   skillMeter: {
@@ -1488,6 +3438,76 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 10,
+  },
+
+  // ✨ PARTICLES
+  particle: {
+    position: 'absolute',
+    zIndex: 100,
+  },
+
+  // ⭐ POWER-UPS
+  powerUp: {
+    position: 'absolute',
+    width: POWERUP_SIZE,
+    height: POWERUP_SIZE,
+    borderRadius: POWERUP_SIZE / 2,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  powerUpIcon: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+
+  // 🦹‍♂️ EPIC BOSS STYLES
+  boss: {
+    position: 'absolute',
+    borderRadius: 15,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 60,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  bossIcon: {
+    fontSize: 28,
+    textAlign: 'center',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  bossHealthBar: {
+    position: 'absolute',
+    bottom: -8,
+    left: 0,
+    right: 0,
+    height: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 2,
+  },
+  bossHealthFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  bossPhase: {
+    position: 'absolute',
+    top: -12,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 8,
   },
 
   // 🚧 OBSTACLES
@@ -1651,6 +3671,12 @@ const styles = StyleSheet.create({
     borderColor: '#4CAF50',
     backgroundColor: 'rgba(76, 175, 80, 0.15)',
     shadowColor: '#4CAF50',
+    shadowOpacity: 0.4,
+  },
+  settingsCard: {
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    shadowColor: '#8B5CF6',
     shadowOpacity: 0.4,
   },
   cardEmoji: {
@@ -2205,6 +4231,184 @@ const styles = StyleSheet.create({
    customizationPrice: {
      fontSize: 10,
      color: '#CCCCCC',
+     fontWeight: 'bold',
+   },
+
+   // 🌟 PARALLAX BACKGROUND STYLES
+   backgroundStar: {
+     position: 'absolute',
+     width: 10,
+     height: 10,
+     borderRadius: 5,
+     backgroundColor: '#FFFFFF',
+     opacity: 0.5,
+     shadowColor: '#FFFFFF',
+     shadowOffset: { width: 0, height: 0 },
+     shadowOpacity: 0.5,
+     shadowRadius: 5,
+     elevation: 5,
+   },
+   backgroundPlanet: {
+     position: 'absolute',
+     width: 20,
+     height: 20,
+     borderRadius: 10,
+     backgroundColor: '#FF6B6B',
+     shadowColor: '#FF6B6B',
+     shadowOffset: { width: 0, height: 0 },
+     shadowOpacity: 0.5,
+     shadowRadius: 10,
+     elevation: 5,
+   },
+   backgroundPlanetRound: {
+     borderWidth: 2,
+     borderColor: '#FFFFFF',
+   },
+   backgroundMoon: {
+     backgroundColor: '#DDA0DD',
+   },
+   backgroundAsteroid: {
+     backgroundColor: '#F39C12',
+   },
+
+   // 🔥 TRAIL PARTICLE STYLES
+   trailParticle: {
+     position: 'absolute',
+     borderRadius: 50,
+     shadowColor: '#FFD60A',
+     shadowOffset: { width: 0, height: 0 },
+     shadowOpacity: 0.8,
+     shadowRadius: 5,
+     elevation: 5,
+   },
+
+   // ⚙️ SETTINGS MODAL STYLES - EPIC CUSTOMIZATION UI!
+   settingsContainer: {
+     flex: 1,
+     maxHeight: '80%',
+   },
+   settingsSection: {
+     marginBottom: 25,
+     backgroundColor: 'rgba(255, 255, 255, 0.02)',
+     borderRadius: 15,
+     padding: 15,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.1)',
+   },
+   settingSectionTitle: {
+     fontSize: 18,
+     fontWeight: 'bold',
+     color: '#FFD60A',
+     marginBottom: 15,
+     textAlign: 'center',
+   },
+   settingItem: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     marginBottom: 15,
+     paddingVertical: 5,
+   },
+   settingLabel: {
+     fontSize: 16,
+     color: '#FFFFFF',
+     fontWeight: '500',
+     flex: 1,
+   },
+   sliderContainer: {
+     alignItems: 'center',
+     justifyContent: 'center',
+     backgroundColor: 'rgba(255, 214, 10, 0.1)',
+     borderRadius: 10,
+     paddingHorizontal: 12,
+     paddingVertical: 6,
+     borderWidth: 1,
+     borderColor: '#FFD60A',
+   },
+   sliderValue: {
+     fontSize: 14,
+     fontWeight: 'bold',
+     color: '#FFD60A',
+   },
+   settingToggle: {
+     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+     borderRadius: 12,
+     padding: 15,
+     marginBottom: 10,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.1)',
+   },
+   settingToggleActive: {
+     backgroundColor: 'rgba(255, 214, 10, 0.1)',
+     borderColor: '#FFD60A',
+   },
+   settingToggleText: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: '#FFFFFF',
+     textAlign: 'center',
+   },
+   segmentedControl: {
+     flexDirection: 'row',
+     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+     borderRadius: 10,
+     padding: 2,
+   },
+   segmentButton: {
+     flex: 1,
+     paddingVertical: 8,
+     paddingHorizontal: 6,
+     borderRadius: 8,
+     alignItems: 'center',
+   },
+   segmentButtonActive: {
+     backgroundColor: '#FFD60A',
+   },
+   segmentButtonText: {
+     fontSize: 12,
+     fontWeight: '600',
+     color: '#CCCCCC',
+   },
+   segmentButtonTextActive: {
+     color: '#1a1a2e',
+   },
+   resetButton: {
+     backgroundColor: 'rgba(239, 68, 68, 0.2)',
+     borderColor: '#EF4444',
+     borderWidth: 2,
+     borderRadius: 12,
+     padding: 15,
+     alignItems: 'center',
+   },
+   resetButtonText: {
+     fontSize: 16,
+     fontWeight: 'bold',
+     color: '#EF4444',
+   },
+
+   // ⚡ POWER-UP INDICATOR STYLES - EPIC STATUS DISPLAY!
+   powerUpIndicators: {
+     flexDirection: 'row',
+     flexWrap: 'wrap',
+     marginTop: 5,
+     gap: 5,
+   },
+   powerUpIndicator: {
+     width: 30,
+     height: 30,
+     borderRadius: 15,
+     alignItems: 'center',
+     justifyContent: 'center',
+     borderWidth: 2,
+     borderColor: '#FFFFFF',
+     shadowColor: '#000000',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.3,
+     shadowRadius: 4,
+     elevation: 5,
+   },
+   powerUpIndicatorIcon: {
+     fontSize: 14,
      fontWeight: 'bold',
    },
  });
