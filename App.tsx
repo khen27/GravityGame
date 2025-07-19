@@ -9,6 +9,7 @@ import {
   Dimensions,
   Modal,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -37,6 +38,7 @@ const HIGH_SCORE_KEY = '@gravity_game_high_score';
 const SETTINGS_KEY = '@gravity_game_settings';
 const LANGUAGE_KEY = '@gravity_game_language';
 const TUTORIAL_KEY = '@gravity_game_tutorial_completed';
+const PLAYER_NAME_KEY = '@gravity_game_player_name';
 
 // 🎯 GAME MODES (from Screenshot 10)
 enum GameMode {
@@ -495,6 +497,10 @@ export default function App() {
   // 🏆 ONLINE FEATURES STATE
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
+
+  // 👤 PLAYER PROFILE SYSTEM!
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [tempPlayerName, setTempPlayerName] = useState('');
 
   // 🎓 EPIC TUTORIAL & ONBOARDING SYSTEM!
   const [tutorialCompleted, setTutorialCompleted] = useState(false);
@@ -1184,6 +1190,13 @@ export default function App() {
    const startGame = useCallback(() => {
     console.log('🎵 Playing start sound effect!');
     playSound('start');
+    
+    // 👤 Prompt for name if not set (first time players)
+    if (!playerName || playerName === 'Anonymous Player') {
+      setTimeout(() => {
+        promptPlayerName();
+      }, 2000); // Prompt after game starts and player gets into the flow
+    }
     
     setGameState(prev => ({
       ...prev,
@@ -1999,6 +2012,24 @@ export default function App() {
     initializeTutorial();
   }, []);
 
+  // 👤 LOAD PLAYER NAME ON MOUNT
+  useEffect(() => {
+    const initializePlayerName = async () => {
+      try {
+        const savedName = await AsyncStorage.getItem(PLAYER_NAME_KEY);
+        if (savedName) {
+          setPlayerName(savedName);
+          console.log('👤 Player name loaded:', savedName);
+        } else {
+          console.log('👤 No saved player name, using default');
+        }
+      } catch (error) {
+        console.error('❌ Failed to load player name:', error);
+      }
+    };
+    initializePlayerName();
+  }, []);
+
   // 🎮 TOUCH HANDLER WITH TUTORIAL INTEGRATION
   const handleTouch = useCallback(() => {
     // 🎓 Tutorial tracking
@@ -2490,6 +2521,43 @@ export default function App() {
     });
   }, [gameState.distance, tutorialStats, showGameTip, tutorialState.isActive]);
 
+  // 👤 PLAYER NAME MANAGEMENT FUNCTIONS
+  const loadPlayerName = useCallback(async () => {
+    try {
+      const savedName = await AsyncStorage.getItem(PLAYER_NAME_KEY);
+      if (savedName) {
+        setPlayerName(savedName);
+        console.log('👤 Player name loaded:', savedName);
+      } else {
+        console.log('👤 No saved player name, using default');
+      }
+    } catch (error) {
+      console.error('❌ Failed to load player name:', error);
+    }
+  }, []);
+
+  const savePlayerName = useCallback(async (name: string) => {
+    try {
+      await AsyncStorage.setItem(PLAYER_NAME_KEY, name);
+      setPlayerName(name);
+      console.log('👤 Player name saved:', name);
+    } catch (error) {
+      console.error('❌ Failed to save player name:', error);
+    }
+  }, []);
+
+  const promptPlayerName = useCallback(() => {
+    setTempPlayerName(playerName || '');
+    setShowNameInput(true);
+  }, [playerName]);
+
+  const handleNameSubmit = useCallback((name: string) => {
+    if (name.trim().length > 0) {
+      savePlayerName(name.trim());
+      setShowNameInput(false);
+    }
+  }, [savePlayerName]);
+
   return (
     <TouchableWithoutFeedback onPress={handleTouch}>
       <View style={styles.container}>
@@ -2969,6 +3037,7 @@ export default function App() {
                ]}>
                                  <View style={styles.gameOverHeader}>
                    <Text style={styles.gameOverTitle}>💀 {t.gameOver}</Text>
+                   <Text style={styles.playerNameDisplay}>👤 {playerName}</Text>
                    <Text style={styles.gameOverSubtitle}>Nice try, gravity master!</Text>
                  </View>
 
@@ -3138,6 +3207,24 @@ export default function App() {
               </View>
 
               <ScrollView style={styles.settingsContainer} showsVerticalScrollIndicator={false}>
+                {/* 👤 PLAYER PROFILE SETTINGS */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingSectionTitle}>👤 Player Profile</Text>
+                  
+                  <View style={styles.settingItem}>
+                    <Text style={styles.settingLabel}>Player Name</Text>
+                    <TouchableOpacity 
+                      style={styles.nameInputButton}
+                      onPress={promptPlayerName}
+                    >
+                      <Text style={styles.nameInputText}>
+                        {playerName || 'Tap to set name'}
+                      </Text>
+                      <Text style={styles.nameInputIcon}>✏️</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 {/* 🔊 AUDIO SETTINGS */}
                 <View style={styles.settingsSection}>
                   <Text style={styles.settingSectionTitle}>🔊 Audio Settings</Text>
@@ -3329,6 +3416,51 @@ export default function App() {
             <Text style={styles.gameTipText}>{tip.message}</Text>
           </View>
         ))}
+
+        {/* 👤 PLAYER NAME INPUT MODAL */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showNameInput}
+          onRequestClose={() => setShowNameInput(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.nameModalContent}>
+              <Text style={styles.nameModalTitle}>👤 Enter Your Name</Text>
+              <Text style={styles.nameModalDescription}>
+                Your name will appear on leaderboards and when sharing scores!
+              </Text>
+              
+              <TextInput
+                style={styles.nameTextInput}
+                placeholder="Enter your name..."
+                placeholderTextColor="#999"
+                maxLength={20}
+                autoFocus={true}
+                value={tempPlayerName}
+                onChangeText={setTempPlayerName}
+                onSubmitEditing={() => handleNameSubmit(tempPlayerName)}
+                returnKeyType="done"
+              />
+              
+              <View style={styles.nameModalButtons}>
+                <TouchableOpacity 
+                  style={[styles.nameModalButton, styles.nameModalCancelButton]}
+                  onPress={() => setShowNameInput(false)}
+                >
+                  <Text style={styles.nameModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.nameModalButton, styles.nameModalSaveButton]}
+                  onPress={() => handleNameSubmit(tempPlayerName)}
+                >
+                  <Text style={styles.nameModalSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* 🎮 MODE SELECTION MODAL (from Screenshot 10) */}
         <Modal visible={showModeSelection} animationType="slide" transparent>
@@ -4922,5 +5054,107 @@ const styles = StyleSheet.create({
      fontSize: 16,
      fontWeight: '600',
      textAlign: 'center',
+   },
+   
+   // 👤 PLAYER NAME INPUT STYLES
+   nameInputButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+     borderRadius: 8,
+     padding: 12,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.2)',
+     minWidth: 150,
+   },
+   nameInputText: {
+     color: '#FFFFFF',
+     fontSize: 16,
+     flex: 1,
+   },
+   nameInputIcon: {
+     fontSize: 16,
+     marginLeft: 8,
+   },
+   
+   // 👤 NAME MODAL STYLES
+   nameModalContent: {
+     backgroundColor: '#1a1a2e',
+     borderRadius: 20,
+     padding: 25,
+     margin: 20,
+     borderWidth: 2,
+     borderColor: '#4F46E5',
+     shadowColor: '#4F46E5',
+     shadowOffset: { width: 0, height: 4 },
+     shadowOpacity: 0.5,
+     shadowRadius: 10,
+     elevation: 10,
+   },
+   nameModalTitle: {
+     fontSize: 22,
+     fontWeight: 'bold',
+     color: '#4F46E5',
+     textAlign: 'center',
+     marginBottom: 10,
+   },
+   nameModalDescription: {
+     fontSize: 16,
+     color: '#CCCCCC',
+     textAlign: 'center',
+     marginBottom: 20,
+     lineHeight: 22,
+   },
+   nameTextInput: {
+     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+     borderRadius: 10,
+     padding: 15,
+     fontSize: 18,
+     color: '#FFFFFF',
+     textAlign: 'center',
+     marginBottom: 20,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.2)',
+   },
+   nameModalButtons: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     gap: 10,
+   },
+   nameModalButton: {
+     flex: 1,
+     padding: 15,
+     borderRadius: 10,
+     alignItems: 'center',
+   },
+   nameModalCancelButton: {
+     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.2)',
+   },
+   nameModalSaveButton: {
+     backgroundColor: '#4F46E5',
+     shadowColor: '#4F46E5',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.3,
+     shadowRadius: 4,
+     elevation: 4,
+   },
+   nameModalCancelText: {
+     color: '#CCCCCC',
+     fontSize: 16,
+     fontWeight: '600',
+   },
+   nameModalSaveText: {
+     color: '#FFFFFF',
+     fontSize: 16,
+     fontWeight: '600',
+   },
+   playerNameDisplay: {
+     fontSize: 18,
+     color: '#4F46E5',
+     fontWeight: '600',
+     textAlign: 'center',
+     marginVertical: 5,
    },
  });
