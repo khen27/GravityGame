@@ -36,6 +36,7 @@ const SAFE_BOTTOM_POSITION = SCREEN_HEIGHT - SAFE_AREA_BOTTOM - 50;
 const HIGH_SCORE_KEY = '@gravity_game_high_score';
 const SETTINGS_KEY = '@gravity_game_settings';
 const LANGUAGE_KEY = '@gravity_game_language';
+const TUTORIAL_KEY = '@gravity_game_tutorial_completed';
 
 // 🎯 GAME MODES (from Screenshot 10)
 enum GameMode {
@@ -292,6 +293,35 @@ interface TrailEffect {
   unlocked: boolean;
 }
 
+// 🎓 EPIC TUTORIAL SYSTEM INTERFACES
+interface TutorialStep {
+  id: string;
+  title: string;
+  description: string;
+  instruction: string;
+  target?: 'tap' | 'flip' | 'collect' | 'survive' | 'distance';
+  targetValue?: number;
+  completed: boolean;
+  skippable: boolean;
+}
+
+interface TutorialState {
+  isActive: boolean;
+  currentStep: number;
+  totalSteps: number;
+  showOverlay: boolean;
+  highlightTarget?: 'player' | 'obstacle' | 'powerup' | 'ui';
+}
+
+interface GameTip {
+  id: string;
+  message: string;
+  condition: 'distance' | 'powerup' | 'boss' | 'collision' | 'streak';
+  triggerValue?: number;
+  shown: boolean;
+  priority: 'low' | 'medium' | 'high';
+}
+
 interface ParticleEffect {
   id: string;
   name: string;
@@ -465,6 +495,25 @@ export default function App() {
   // 🏆 ONLINE FEATURES STATE
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
+
+  // 🎓 EPIC TUTORIAL & ONBOARDING SYSTEM!
+  const [tutorialCompleted, setTutorialCompleted] = useState(false);
+  const [tutorialState, setTutorialState] = useState<TutorialState>({
+    isActive: false,
+    currentStep: 0,
+    totalSteps: 6,
+    showOverlay: false,
+    highlightTarget: undefined,
+  });
+
+  const [activeTips, setActiveTips] = useState<GameTip[]>([]);
+  const [tutorialStats, setTutorialStats] = useState({
+    tapsCount: 0,
+    flipsCount: 0,
+    powerUpsCollected: 0,
+    maxDistance: 0,
+    survivedTime: 0,
+  });
   const [playerStats, setPlayerStats] = useState<PlayerStats>({
     totalGames: 0,
     totalDistance: 0,
@@ -1168,6 +1217,15 @@ export default function App() {
       shield: { active: false, endTime: 0 },
     });
 
+    // 🎓 RESET TUTORIAL STATS FOR NEW GAME
+    setTutorialStats({
+      tapsCount: 0,
+      flipsCount: 0,
+      powerUpsCollected: 0,
+      maxDistance: 0,
+      survivedTime: 0,
+    });
+
     // 🌟 INITIALIZE EPIC PARALLAX BACKGROUND!
     generateBackgroundStars();
     generateBackgroundPlanets();
@@ -1676,9 +1734,18 @@ export default function App() {
         // 💰 DOUBLE SCORE POWER-UP EFFECT!
         const scoreMultiplier = activePowerUps.doubleScore.active ? 2.0 : 1.0;
         
+        const newDistance = prev.distance + (prev.speed * 0.1 * distanceMultiplier * scoreMultiplier);
+        
+        // 🎓 Tutorial tracking for distance and survival
+        setTutorialStats(prevStats => ({
+          ...prevStats,
+          maxDistance: Math.max(prevStats.maxDistance, newDistance),
+          survivedTime: prevStats.survivedTime + 0.016, // ~60fps
+        }));
+
         return {
           ...prev,
-          distance: prev.distance + (prev.speed * 0.1 * distanceMultiplier * scoreMultiplier),
+          distance: newDistance,
           speed: (BASE_SPEED + (prev.distance * 0.001)) * speedMultiplier,
           skill: Math.min(10, (prev.distance / 100) * skillGainMultiplier),
           flow: Math.min(100, (prev.distance / 10) % 100),
@@ -1728,6 +1795,10 @@ export default function App() {
       
       // 🧲 Apply magnet effect
       applyMagnetEffect();
+
+      // 🎓 Check tutorial progress and show tips
+      checkTutorialProgress();
+      checkGameTips();
 
       // Move and update bosses
       setBosses(prev => 
@@ -1826,6 +1897,12 @@ export default function App() {
         // ⚡ ACTIVATE THE EPIC POWER-UP!
         activatePowerUp(collectedPowerUp.type, collectedPowerUp.duration);
         
+        // 🎓 Tutorial tracking for power-up collection
+        setTutorialStats(prev => ({
+          ...prev,
+          powerUpsCollected: prev.powerUpsCollected + 1,
+        }));
+        
         // Remove collected power-up
         setPowerUps(prev => prev.filter(p => p.id !== collectedPowerUp.id));
       }
@@ -1903,8 +1980,34 @@ export default function App() {
     initializeSettings();
   }, []);
 
-  // 🎮 TOUCH HANDLER
+  // 🎓 LOAD TUTORIAL PROGRESS ON MOUNT
+  useEffect(() => {
+    const initializeTutorial = async () => {
+      try {
+        const saved = await AsyncStorage.getItem(TUTORIAL_KEY);
+        if (saved) {
+          setTutorialCompleted(JSON.parse(saved));
+          console.log('🎓 Tutorial progress loaded:', JSON.parse(saved));
+        } else {
+          // First time player - offer tutorial
+          console.log('🎓 New player detected - tutorial available');
+        }
+      } catch (error) {
+        console.error('❌ Failed to load tutorial progress:', error);
+      }
+    };
+    initializeTutorial();
+  }, []);
+
+  // 🎮 TOUCH HANDLER WITH TUTORIAL INTEGRATION
   const handleTouch = useCallback(() => {
+    // 🎓 Tutorial tracking
+    setTutorialStats(prev => ({
+      ...prev,
+      tapsCount: prev.tapsCount + 1,
+      flipsCount: gameState.isPlaying ? prev.flipsCount + 1 : prev.flipsCount,
+    }));
+
     if (gameState.isPlaying) {
       flipPlayer();
     } else if (gameState.isGameOver) {
@@ -2167,6 +2270,225 @@ export default function App() {
     };
     saveSettings(defaultSettings);
   }, [saveSettings]);
+
+  // 🎓 EPIC TUTORIAL STEPS DEFINITION - PROGRESSIVE LEARNING!
+  const tutorialSteps: TutorialStep[] = [
+    {
+      id: 'welcome',
+      title: '🚀 Welcome to Gravity Game!',
+      description: 'Master the art of gravity flipping in this epic space adventure!',
+      instruction: 'Tap anywhere to begin your journey',
+      target: 'tap',
+      targetValue: 1,
+      completed: false,
+      skippable: false,
+    },
+    {
+      id: 'basic_flip',
+      title: '🔄 Learn to Flip',
+      description: 'Tap the screen to flip gravity and navigate safely',
+      instruction: 'Tap 3 times to practice flipping gravity',
+      target: 'flip',
+      targetValue: 3,
+      completed: false,
+      skippable: false,
+    },
+    {
+      id: 'avoid_obstacles',
+      title: '🚧 Dodge Obstacles',
+      description: 'Red obstacles are dangerous! Flip gravity to avoid them',
+      instruction: 'Survive for 10 seconds without hitting obstacles',
+      target: 'survive',
+      targetValue: 10,
+      completed: false,
+      skippable: true,
+    },
+    {
+      id: 'collect_powerups',
+      title: '⭐ Collect Power-ups',
+      description: 'Golden power-ups give you amazing abilities!',
+      instruction: 'Collect 2 power-ups to see their magic',
+      target: 'collect',
+      targetValue: 2,
+      completed: false,
+      skippable: true,
+    },
+    {
+      id: 'reach_distance',
+      title: '🏃‍♂️ Go the Distance',
+      description: 'The further you travel, the higher your score!',
+      instruction: 'Reach 100 meters to prove your skills',
+      target: 'distance',
+      targetValue: 100,
+      completed: false,
+      skippable: true,
+    },
+    {
+      id: 'graduation',
+      title: '🎓 Tutorial Complete!',
+      description: 'You\'re ready for the full gravity adventure!',
+      instruction: 'Tap to start your epic journey',
+      completed: false,
+      skippable: false,
+    }
+  ];
+
+  // 🎯 DYNAMIC TIPS SYSTEM - CONTEXTUAL GUIDANCE!
+  const gameTips: GameTip[] = [
+    { id: 'tip_1', message: '💡 Tip: Time your flips carefully for smooth navigation!', condition: 'distance', triggerValue: 50, shown: false, priority: 'medium' },
+    { id: 'tip_2', message: '⚡ Amazing! Power-ups can change everything!', condition: 'powerup', shown: false, priority: 'high' },
+    { id: 'tip_3', message: '🦹‍♂️ Warning: Boss approaching! Get ready for epic battles!', condition: 'boss', shown: false, priority: 'high' },
+    { id: 'tip_4', message: '🔥 You\'re on fire! Keep that streak going!', condition: 'streak', triggerValue: 5, shown: false, priority: 'low' },
+    { id: 'tip_5', message: '💰 Pro tip: Double score power-ups multiply your progress!', condition: 'distance', triggerValue: 200, shown: false, priority: 'medium' },
+  ];
+
+  // 🎓 TUTORIAL MANAGEMENT FUNCTIONS
+  const loadTutorialProgress = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem(TUTORIAL_KEY);
+      if (saved) {
+        setTutorialCompleted(JSON.parse(saved));
+        console.log('🎓 Tutorial progress loaded:', JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('❌ Failed to load tutorial progress:', error);
+    }
+  }, []);
+
+  const saveTutorialProgress = useCallback(async (completed: boolean) => {
+    try {
+      await AsyncStorage.setItem(TUTORIAL_KEY, JSON.stringify(completed));
+      setTutorialCompleted(completed);
+      console.log('🎓 Tutorial progress saved:', completed);
+    } catch (error) {
+      console.error('❌ Failed to save tutorial progress:', error);
+    }
+  }, []);
+
+  const startTutorial = useCallback(() => {
+    console.log('🎓 Starting epic tutorial!');
+    setTutorialState({
+      isActive: true,
+      currentStep: 0,
+      totalSteps: tutorialSteps.length,
+      showOverlay: true,
+      highlightTarget: 'ui',
+    });
+    setTutorialStats({
+      tapsCount: 0,
+      flipsCount: 0,
+      powerUpsCollected: 0,
+      maxDistance: 0,
+      survivedTime: 0,
+    });
+  }, []);
+
+  const nextTutorialStep = useCallback(() => {
+    setTutorialState(prev => {
+      const nextStep = prev.currentStep + 1;
+      if (nextStep >= prev.totalSteps) {
+        // Tutorial completed!
+        saveTutorialProgress(true);
+        return {
+          ...prev,
+          isActive: false,
+          showOverlay: false,
+          highlightTarget: undefined,
+        };
+      }
+      
+      const step = tutorialSteps[nextStep];
+      console.log('🎓 Moving to tutorial step:', step.title);
+      
+      return {
+        ...prev,
+        currentStep: nextStep,
+        highlightTarget: step.target === 'flip' ? 'player' : 
+                        step.target === 'collect' ? 'powerup' :
+                        step.target === 'survive' ? 'obstacle' : 'ui',
+      };
+    });
+  }, [saveTutorialProgress]);
+
+  const completeTutorialStep = useCallback((stepId: string) => {
+    const currentStep = tutorialSteps[tutorialState.currentStep];
+    if (currentStep && currentStep.id === stepId) {
+      console.log('✅ Tutorial step completed:', stepId);
+      createParticles(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 'achievement', 10);
+      triggerScreenShake('light');
+      setTimeout(() => nextTutorialStep(), 1000);
+    }
+  }, [tutorialState.currentStep, nextTutorialStep, createParticles, triggerScreenShake]);
+
+  const checkTutorialProgress = useCallback(() => {
+    if (!tutorialState.isActive) return;
+    
+    const currentStep = tutorialSteps[tutorialState.currentStep];
+    if (!currentStep || currentStep.completed) return;
+
+    switch (currentStep.target) {
+      case 'tap':
+        if (tutorialStats.tapsCount >= (currentStep.targetValue || 1)) {
+          completeTutorialStep(currentStep.id);
+        }
+        break;
+      case 'flip':
+        if (tutorialStats.flipsCount >= (currentStep.targetValue || 1)) {
+          completeTutorialStep(currentStep.id);
+        }
+        break;
+      case 'collect':
+        if (tutorialStats.powerUpsCollected >= (currentStep.targetValue || 1)) {
+          completeTutorialStep(currentStep.id);
+        }
+        break;
+      case 'survive':
+        if (tutorialStats.survivedTime >= (currentStep.targetValue || 10)) {
+          completeTutorialStep(currentStep.id);
+        }
+        break;
+      case 'distance':
+        if (tutorialStats.maxDistance >= (currentStep.targetValue || 100)) {
+          completeTutorialStep(currentStep.id);
+        }
+        break;
+    }
+  }, [tutorialState, tutorialStats, completeTutorialStep]);
+
+  // 💡 DYNAMIC TIPS SYSTEM
+  const showGameTip = useCallback((tip: GameTip) => {
+    if (tip.shown || tutorialState.isActive) return;
+    
+    setActiveTips(prev => [...prev.filter(t => t.id !== tip.id), { ...tip, shown: true }]);
+    console.log('💡 Showing game tip:', tip.message);
+    
+    // Auto-hide tip after 4 seconds
+    setTimeout(() => {
+      setActiveTips(prev => prev.filter(t => t.id !== tip.id));
+    }, 4000);
+  }, [tutorialState.isActive]);
+
+  const checkGameTips = useCallback(() => {
+    if (tutorialState.isActive) return;
+    
+    gameTips.forEach(tip => {
+      if (tip.shown) return;
+      
+      switch (tip.condition) {
+        case 'distance':
+          if (gameState.distance >= (tip.triggerValue || 0)) {
+            showGameTip(tip);
+          }
+          break;
+        case 'powerup':
+          if (tutorialStats.powerUpsCollected > 0) {
+            showGameTip(tip);
+          }
+          break;
+        // Add more conditions as needed
+      }
+    });
+  }, [gameState.distance, tutorialStats, showGameTip, tutorialState.isActive]);
 
   return (
     <TouchableWithoutFeedback onPress={handleTouch}>
@@ -2601,6 +2923,24 @@ export default function App() {
                    <Text style={styles.cardDescription}>Audio • Graphics • Controls</Text>
                  </TouchableOpacity>
 
+                 {/* 🎓 Tutorial Card - LEARN THE GAME! */}
+                 <TouchableOpacity 
+                   style={[styles.menuCard, styles.tutorialCard]}
+                   onPress={startTutorial}
+                   activeOpacity={0.8}
+                 >
+                   <Text style={styles.cardEmoji}>🎓</Text>
+                   <View style={styles.cardBadge}>
+                     <Text style={styles.cardBadgeText}>
+                       {tutorialCompleted ? 'DONE' : 'NEW'}
+                     </Text>
+                   </View>
+                   <Text style={styles.cardTitle}>Tutorial</Text>
+                   <Text style={styles.cardDescription}>
+                     {tutorialCompleted ? 'Replay tutorial' : 'Learn to play'}
+                   </Text>
+                 </TouchableOpacity>
+
                  {/* Share Card */}
                  <TouchableOpacity 
                    style={[styles.menuCard, styles.shareCard]}
@@ -2936,6 +3276,59 @@ export default function App() {
             </View>
           </View>
         </Modal>
+
+        {/* 🎓 EPIC TUTORIAL OVERLAY - INTERACTIVE LEARNING! */}
+        {tutorialState.isActive && (
+          <View style={styles.tutorialOverlay}>
+            <View style={styles.tutorialContent}>
+              <View style={styles.tutorialHeader}>
+                <Text style={styles.tutorialTitle}>
+                  {tutorialSteps[tutorialState.currentStep]?.title}
+                </Text>
+                <Text style={styles.tutorialProgress}>
+                  {tutorialState.currentStep + 1} / {tutorialState.totalSteps}
+                </Text>
+              </View>
+              
+              <Text style={styles.tutorialDescription}>
+                {tutorialSteps[tutorialState.currentStep]?.description}
+              </Text>
+              
+              <View style={styles.tutorialInstructionBox}>
+                <Text style={styles.tutorialInstruction}>
+                  {tutorialSteps[tutorialState.currentStep]?.instruction}
+                </Text>
+              </View>
+
+              {/* Tutorial Progress Bar */}
+              <View style={styles.tutorialProgressBar}>
+                <View 
+                  style={[
+                    styles.tutorialProgressFill,
+                    { width: `${((tutorialState.currentStep + 1) / tutorialState.totalSteps) * 100}%` }
+                  ]}
+                />
+              </View>
+
+              {/* Skip Button for skippable steps */}
+              {tutorialSteps[tutorialState.currentStep]?.skippable && (
+                <TouchableOpacity 
+                  style={styles.tutorialSkipButton}
+                  onPress={nextTutorialStep}
+                >
+                  <Text style={styles.tutorialSkipText}>Skip Step →</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* 💡 DYNAMIC TIPS DISPLAY */}
+        {activeTips.map(tip => (
+          <View key={tip.id} style={styles.gameTip}>
+            <Text style={styles.gameTipText}>{tip.message}</Text>
+          </View>
+        ))}
 
         {/* 🎮 MODE SELECTION MODAL (from Screenshot 10) */}
         <Modal visible={showModeSelection} animationType="slide" transparent>
@@ -3679,6 +4072,12 @@ const styles = StyleSheet.create({
     shadowColor: '#8B5CF6',
     shadowOpacity: 0.4,
   },
+  tutorialCard: {
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.4,
+  },
   cardEmoji: {
     fontSize: 36,
     marginBottom: 10,
@@ -4410,5 +4809,118 @@ const styles = StyleSheet.create({
    powerUpIndicatorIcon: {
      fontSize: 14,
      fontWeight: 'bold',
+   },
+
+   // 🎓 TUTORIAL OVERLAY STYLES - EPIC LEARNING INTERFACE!
+   tutorialOverlay: {
+     position: 'absolute',
+     top: 0,
+     left: 0,
+     right: 0,
+     bottom: 0,
+     backgroundColor: 'rgba(0, 0, 0, 0.8)',
+     justifyContent: 'center',
+     alignItems: 'center',
+     zIndex: 1000,
+   },
+   tutorialContent: {
+     backgroundColor: '#1a1a2e',
+     borderRadius: 20,
+     padding: 25,
+     margin: 20,
+     maxWidth: '90%',
+     borderWidth: 2,
+     borderColor: '#10B981',
+     shadowColor: '#10B981',
+     shadowOffset: { width: 0, height: 4 },
+     shadowOpacity: 0.5,
+     shadowRadius: 10,
+     elevation: 10,
+   },
+   tutorialHeader: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     marginBottom: 15,
+   },
+   tutorialTitle: {
+     fontSize: 22,
+     fontWeight: 'bold',
+     color: '#10B981',
+     flex: 1,
+   },
+   tutorialProgress: {
+     fontSize: 14,
+     color: '#CCCCCC',
+     backgroundColor: 'rgba(16, 185, 129, 0.2)',
+     paddingHorizontal: 10,
+     paddingVertical: 4,
+     borderRadius: 12,
+   },
+   tutorialDescription: {
+     fontSize: 16,
+     color: '#FFFFFF',
+     marginBottom: 15,
+     lineHeight: 22,
+   },
+   tutorialInstructionBox: {
+     backgroundColor: 'rgba(16, 185, 129, 0.1)',
+     borderRadius: 12,
+     padding: 15,
+     marginBottom: 20,
+     borderWidth: 1,
+     borderColor: '#10B981',
+   },
+   tutorialInstruction: {
+     fontSize: 18,
+     fontWeight: '600',
+     color: '#10B981',
+     textAlign: 'center',
+   },
+   tutorialProgressBar: {
+     height: 6,
+     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+     borderRadius: 3,
+     marginBottom: 15,
+     overflow: 'hidden',
+   },
+   tutorialProgressFill: {
+     height: '100%',
+     backgroundColor: '#10B981',
+     borderRadius: 3,
+   },
+   tutorialSkipButton: {
+     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+     borderRadius: 8,
+     padding: 10,
+     alignItems: 'center',
+   },
+   tutorialSkipText: {
+     color: '#CCCCCC',
+     fontSize: 14,
+     fontWeight: '500',
+   },
+   gameTip: {
+     position: 'absolute',
+     top: 100,
+     left: 20,
+     right: 20,
+     backgroundColor: 'rgba(16, 185, 129, 0.95)',
+     borderRadius: 12,
+     padding: 15,
+     zIndex: 999,
+     borderWidth: 1,
+     borderColor: '#10B981',
+     shadowColor: '#10B981',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.5,
+     shadowRadius: 8,
+     elevation: 8,
+   },
+   gameTipText: {
+     color: '#FFFFFF',
+     fontSize: 16,
+     fontWeight: '600',
+     textAlign: 'center',
    },
  });
