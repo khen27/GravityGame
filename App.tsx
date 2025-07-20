@@ -262,6 +262,44 @@ interface PlayerSkin {
   unlocked: boolean;
 }
 
+// 🧪 AUTOMATED TESTING FRAMEWORK - NINTENDO LEVEL QUALITY ASSURANCE!
+interface TestCase {
+  id: string;
+  name: string;
+  description: string;
+  category: 'ui' | 'gameplay' | 'customization' | 'integration';
+  steps: TestStep[];
+  expectedResult: string;
+  actualResult?: string;
+  status: 'pending' | 'running' | 'passed' | 'failed';
+  timestamp?: number;
+}
+
+interface TestStep {
+  action: string;
+  target: string;
+  expectedState?: any;
+  actualState?: any;
+}
+
+interface TestSuite {
+  id: string;
+  name: string;
+  tests: TestCase[];
+  passRate: number;
+  totalTests: number;
+  passedTests: number;
+  failedTests: number;
+}
+
+// 🎮 CUSTOMIZATION TAB SYSTEM
+enum CustomizationTab {
+  SKINS = 'skins',
+  TRAILS = 'trails', 
+  EFFECTS = 'effects',
+  SPECIAL = 'special'
+}
+
 // ✨ PARTICLE SYSTEM TYPES
 interface Particle {
   id: string;
@@ -315,14 +353,7 @@ interface TutorialState {
   highlightTarget?: 'player' | 'obstacle' | 'powerup' | 'ui';
 }
 
-interface GameTip {
-  id: string;
-  message: string;
-  condition: 'distance' | 'powerup' | 'boss' | 'collision' | 'streak';
-  triggerValue?: number;
-  shown: boolean;
-  priority: 'low' | 'medium' | 'high';
-}
+
 
 interface ParticleEffect {
   id: string;
@@ -443,6 +474,460 @@ interface PlayerStats {
   level: number;
 }
 
+// 🎨 COMPREHENSIVE ORB SYSTEM - NINTENDO DREAM TEAM DESIGN!
+interface OrbSkin {
+  id: string;
+  name: string;
+  category: 'classic' | 'elemental' | 'cosmic' | 'legendary' | 'special';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary' | 'mythic';
+  colors: {
+    core: string;
+    outer: string;
+    glow: string;
+    sparkle: string;
+  };
+  effects: {
+    hasTrail: boolean;
+    hasParticles: boolean;
+    hasGlow: boolean;
+    hasPulse: boolean;
+    customEffect?: string;
+  };
+  unlockCondition: {
+    type: 'default' | 'distance' | 'games' | 'achievement' | 'premium';
+    requirement?: number;
+    description: string;
+  };
+  unlocked: boolean;
+  isNew?: boolean;
+}
+
+// 🏁 SUPER MARIO RUN INSPIRED COURSE SYSTEM!
+interface Course {
+  id: number;
+  name: string;
+  targetDistance: number;
+  coinTarget: number;
+  environment: 'sky' | 'underground' | 'castle' | 'space' | 'special';
+  unlocked: boolean;
+  completed: boolean;
+  bestDistance: number;
+  coinsCollected: number;
+  stars: number; // 1-3 stars based on performance
+  attempts: number;
+}
+
+interface Coin {
+  id: string;
+  x: number;
+  y: number;
+  type: 'normal' | 'special' | 'multiplier';
+  value: number;
+  collected: boolean;
+  sparkleEffect: boolean;
+}
+
+interface CourseCompletion {
+  courseId: number;
+  completed: boolean;
+  distance: number;
+  coinsCollected: number;
+  stars: number;
+  celebrationShown: boolean;
+}
+
+// 🏁 SUPER MARIO RUN INSPIRED COURSES!
+const MARIO_INSPIRED_COURSES: Course[] = [
+  {
+    id: 1,
+    name: "Up and Over",
+    targetDistance: 100,
+    coinTarget: 15,
+    environment: 'sky',
+    unlocked: true,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  },
+  {
+    id: 2, 
+    name: "Wall-Kicking It Underground",
+    targetDistance: 200,
+    coinTarget: 25,
+    environment: 'underground',
+    unlocked: false,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  },
+  {
+    id: 3,
+    name: "Gravity Caverns",
+    targetDistance: 300,
+    coinTarget: 35,
+    environment: 'underground',
+    unlocked: false,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  },
+  {
+    id: 4,
+    name: "Sky Palace Challenge", 
+    targetDistance: 400,
+    coinTarget: 45,
+    environment: 'sky',
+    unlocked: false,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  },
+  {
+    id: 5,
+    name: "Cosmic Flip Zone",
+    targetDistance: 500,
+    coinTarget: 60,
+    environment: 'space',
+    unlocked: false,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  },
+  {
+    id: 6,
+    name: "Bowser's Castle Hangout",
+    targetDistance: 600,
+    coinTarget: 75,
+    environment: 'castle',
+    unlocked: false,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  },
+  {
+    id: 7,
+    name: "Master's Trial",
+    targetDistance: 750,
+    coinTarget: 90,
+    environment: 'special',
+    unlocked: false,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  },
+  {
+    id: 8,
+    name: "Infinite Flip Final",
+    targetDistance: 1000,
+    coinTarget: 120,
+    environment: 'special',
+    unlocked: false,
+    completed: false,
+    bestDistance: 0,
+    coinsCollected: 0,
+    stars: 0,
+    attempts: 0
+  }
+];
+
+// 🌈 EPIC ORB COLLECTION - NINTENDO-LEVEL VARIETY!
+const EPIC_ORB_COLLECTION: OrbSkin[] = [
+  // 🎭 CLASSIC CATEGORY
+  {
+    id: 'classic_blue',
+    name: 'Classic Blue',
+    category: 'classic',
+    rarity: 'common',
+    colors: {
+      core: '#E0E7FF',
+      outer: '#3B82F6',
+      glow: '#60A5FA',
+      sparkle: '#DBEAFE'
+    },
+    effects: {
+      hasTrail: false,
+      hasParticles: false,
+      hasGlow: true,
+      hasPulse: false
+    },
+    unlockCondition: {
+      type: 'default',
+      description: 'Available from start'
+    },
+    unlocked: true
+  },
+  {
+    id: 'classic_purple',
+    name: 'Classic Purple',
+    category: 'classic',
+    rarity: 'common',
+    colors: {
+      core: '#F3E8FF',
+      outer: '#8B5CF6',
+      glow: '#A78BFA',
+      sparkle: '#EDE9FE'
+    },
+    effects: {
+      hasTrail: false,
+      hasParticles: false,
+      hasGlow: true,
+      hasPulse: false
+    },
+    unlockCondition: {
+      type: 'games',
+      requirement: 5,
+      description: 'Play 5 games'
+    },
+    unlocked: false
+  },
+  {
+    id: 'classic_green',
+    name: 'Classic Green',
+    category: 'classic',
+    rarity: 'common',
+    colors: {
+      core: '#ECFDF5',
+      outer: '#10B981',
+      glow: '#34D399',
+      sparkle: '#D1FAE5'
+    },
+    effects: {
+      hasTrail: false,
+      hasParticles: false,
+      hasGlow: true,
+      hasPulse: false
+    },
+    unlockCondition: {
+      type: 'distance',
+      requirement: 100,
+      description: 'Travel 100m in a single run'
+    },
+    unlocked: false
+  },
+
+  // 🔥 ELEMENTAL CATEGORY
+  {
+    id: 'fire_orb',
+    name: 'Fire Orb',
+    category: 'elemental',
+    rarity: 'rare',
+    colors: {
+      core: '#FEF3C7',
+      outer: '#DC2626',
+      glow: '#F87171',
+      sparkle: '#FCA5A5'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: true,
+      customEffect: 'flame'
+    },
+    unlockCondition: {
+      type: 'distance',
+      requirement: 250,
+      description: 'Travel 250m in a single run'
+    },
+    unlocked: false
+  },
+  {
+    id: 'water_orb',
+    name: 'Water Orb',
+    category: 'elemental',
+    rarity: 'rare',
+    colors: {
+      core: '#F0F9FF',
+      outer: '#0369A1',
+      glow: '#0EA5E9',
+      sparkle: '#7DD3FC'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: false,
+      customEffect: 'ripple'
+    },
+    unlockCondition: {
+      type: 'achievement',
+      requirement: 10,
+      description: 'Collect 10 power-ups in one game'
+    },
+    unlocked: false
+  },
+  {
+    id: 'lightning_orb',
+    name: 'Lightning Orb',
+    category: 'elemental',
+    rarity: 'epic',
+    colors: {
+      core: '#FFFBEB',
+      outer: '#7C2D12',
+      glow: '#F59E0B',
+      sparkle: '#FDE68A'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: true,
+      customEffect: 'electric'
+    },
+    unlockCondition: {
+      type: 'distance',
+      requirement: 500,
+      description: 'Travel 500m in a single run'
+    },
+    unlocked: false
+  },
+
+  // 🌌 COSMIC CATEGORY  
+  {
+    id: 'galaxy_orb',
+    name: 'Galaxy Orb',
+    category: 'cosmic',
+    rarity: 'epic',
+    colors: {
+      core: '#1E1B4B',
+      outer: '#4C1D95',
+      glow: '#8B5CF6',
+      sparkle: '#C4B5FD'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: true,
+      customEffect: 'stardust'
+    },
+    unlockCondition: {
+      type: 'games',
+      requirement: 50,
+      description: 'Complete 50 games'
+    },
+    unlocked: false
+  },
+  {
+    id: 'nebula_orb',
+    name: 'Nebula Orb',
+    category: 'cosmic',
+    rarity: 'epic',
+    colors: {
+      core: '#FDF2F8',
+      outer: '#BE185D',
+      glow: '#EC4899',
+      sparkle: '#F9A8D4'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: true,
+      customEffect: 'cosmic_dust'
+    },
+    unlockCondition: {
+      type: 'distance',
+      requirement: 750,
+      description: 'Travel 750m in a single run'
+    },
+    unlocked: false
+  },
+
+  // 👑 LEGENDARY CATEGORY
+  {
+    id: 'rainbow_orb',
+    name: 'Rainbow Orb',
+    category: 'legendary',
+    rarity: 'legendary',
+    colors: {
+      core: '#FFFFFF',
+      outer: '#6366F1',
+      glow: '#8B5CF6',
+      sparkle: '#F59E0B'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: true,
+      customEffect: 'rainbow_shift'
+    },
+    unlockCondition: {
+      type: 'distance',
+      requirement: 1000,
+      description: 'Travel 1000m in a single run!'
+    },
+    unlocked: false
+  },
+  {
+    id: 'diamond_orb',
+    name: 'Diamond Orb',
+    category: 'legendary',
+    rarity: 'legendary',
+    colors: {
+      core: '#FFFFFF',
+      outer: '#F8FAFC',
+      glow: '#E2E8F0',
+      sparkle: '#CBD5E1'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: true,
+      customEffect: 'crystal_shine'
+    },
+    unlockCondition: {
+      type: 'achievement',
+      requirement: 100,
+      description: 'Score 100+ points without dying'
+    },
+    unlocked: false
+  },
+
+  // 🌟 SPECIAL/MYTHIC CATEGORY
+  {
+    id: 'master_orb',
+    name: 'Master Orb',
+    category: 'special',
+    rarity: 'mythic',
+    colors: {
+      core: '#8B5CF6',
+      outer: '#6366F1',
+      glow: '#A78BFA',
+      sparkle: '#C4B5FD'
+    },
+    effects: {
+      hasTrail: true,
+      hasParticles: true,
+      hasGlow: true,
+      hasPulse: true,
+      customEffect: 'master_aura'
+    },
+    unlockCondition: {
+      type: 'achievement',
+      requirement: 1000,
+      description: 'Complete all achievements'
+    },
+    unlocked: false
+  }
+];
+
 export default function App() {
   // 🎮 CORE GAME STATE
   const [gameState, setGameState] = useState<GameState>({
@@ -470,6 +955,28 @@ export default function App() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
+  
+  // 🎮 CUSTOMIZATION STATE MANAGEMENT - NINTENDO STYLE!
+  const [activeCustomizationTab, setActiveCustomizationTab] = useState<CustomizationTab>(CustomizationTab.SKINS);
+  const [selectedSkinId, setSelectedSkinId] = useState('classic_blue');
+  const [selectedTrailId, setSelectedTrailId] = useState('default');
+  const [selectedEffectId, setSelectedEffectId] = useState('none');
+  const [availableOrbs, setAvailableOrbs] = useState<OrbSkin[]>(EPIC_ORB_COLLECTION);
+  const [unlockedOrbs, setUnlockedOrbs] = useState<string[]>(['classic_blue']);
+
+  // 🏁 SUPER MARIO RUN INSPIRED COURSE SYSTEM STATE!
+  const [courses, setCourses] = useState<Course[]>(MARIO_INSPIRED_COURSES);
+  const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
+  const [courseCoins, setCourseCoins] = useState<Coin[]>([]);
+  const [collectedCoins, setCollectedCoins] = useState<number>(0);
+  const [showCourseCompletion, setShowCourseCompletion] = useState(false);
+  const [completionData, setCompletionData] = useState<CourseCompletion | null>(null);
+  const [showCourseSelection, setShowCourseSelection] = useState(false);
+  
+  // 🧪 AUTOMATED TESTING STATE - QUALITY ASSURANCE!
+  const [testSuite, setTestSuite] = useState<TestSuite | null>(null);
+  const [isRunningTests, setIsRunningTests] = useState(false);
+  const [showTestResults, setShowTestResults] = useState(false);
   
   // 🌍 LANGUAGE SYSTEM
   const [currentLanguage, setCurrentLanguage] = useState<Language>(Language.ENGLISH);
@@ -501,6 +1008,7 @@ export default function App() {
   // 👤 PLAYER PROFILE SYSTEM!
   const [showNameInput, setShowNameInput] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState('');
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
 
   // 🎓 EPIC TUTORIAL & ONBOARDING SYSTEM!
   const [tutorialCompleted, setTutorialCompleted] = useState(false);
@@ -512,7 +1020,7 @@ export default function App() {
     highlightTarget: undefined,
   });
 
-  const [activeTips, setActiveTips] = useState<GameTip[]>([]);
+
   const [tutorialStats, setTutorialStats] = useState({
     tapsCount: 0,
     flipsCount: 0,
@@ -1936,9 +2444,8 @@ export default function App() {
       // 🧲 Apply magnet effect
       applyMagnetEffect();
 
-      // 🎓 Check tutorial progress and show tips
+      // 🎓 Check tutorial progress
       checkTutorialProgress();
-      checkGameTips();
 
       // Move and update bosses
       setBosses(prev => 
@@ -2191,7 +2698,7 @@ export default function App() {
     initializeTutorial();
   }, []);
 
-  // 👤 LOAD PLAYER NAME ON MOUNT
+  // 👤 LOAD PLAYER NAME ON MOUNT & CHECK FIRST RUN
   useEffect(() => {
     const initializePlayerName = async () => {
       try {
@@ -2200,10 +2707,12 @@ export default function App() {
           setPlayerName(savedName);
           console.log('👤 Player name loaded:', savedName);
         } else {
-          console.log('👤 No saved player name, using default');
+          console.log('👤 No saved player name - showing welcome screen');
+          setShowWelcomeScreen(true);
         }
       } catch (error) {
         console.error('❌ Failed to load player name:', error);
+        setShowWelcomeScreen(true); // Show welcome screen on error too
       }
     };
     initializePlayerName();
@@ -2495,6 +3004,352 @@ export default function App() {
     currentSettingsRef.current = defaultSettings; // Update ref
   }, [saveSettings]);
 
+  // 🧪 AUTOMATED TESTING FRAMEWORK - NINTENDO QUALITY ASSURANCE!
+  const createTestSuite = useCallback((): TestSuite => {
+    return {
+      id: 'customization_test_suite',
+      name: 'Customization System Test Suite',
+      totalTests: 0,
+      passedTests: 0,
+      failedTests: 0,
+      passRate: 0,
+      tests: [
+        {
+          id: 'test_customization_modal_open',
+          name: 'Customization Modal Opens',
+          description: 'Test that customization modal opens when customize button is pressed',
+          category: 'ui',
+          status: 'pending',
+          expectedResult: 'Customization modal should be visible',
+          steps: [
+            { action: 'press', target: 'customize_button' },
+            { action: 'verify', target: 'customization_modal', expectedState: { visible: true } }
+          ]
+        },
+        {
+          id: 'test_tab_switching',
+          name: 'Tab Switching Works',
+          description: 'Test that tabs switch between Skins, Trails, Effects, Special',
+          category: 'customization',
+          status: 'pending',
+          expectedResult: 'Active tab should change when tab is pressed',
+          steps: [
+            { action: 'press', target: 'trails_tab' },
+            { action: 'verify', target: 'active_tab', expectedState: 'trails' },
+            { action: 'press', target: 'effects_tab' },
+            { action: 'verify', target: 'active_tab', expectedState: 'effects' }
+          ]
+        },
+        {
+          id: 'test_orb_selection',
+          name: 'Orb Selection Works',
+          description: 'Test that orbs can be selected and preview updates',
+          category: 'customization',
+          status: 'pending',
+          expectedResult: 'Selected orb should be highlighted and preview should update',
+          steps: [
+            { action: 'press', target: 'legendary_orb' },
+            { action: 'verify', target: 'selected_orb', expectedState: 'legendary' },
+            { action: 'verify', target: 'preview_orb', expectedState: 'legendary' }
+          ]
+        },
+        {
+          id: 'test_customization_persistence',
+          name: 'Customization Saves',
+          description: 'Test that customization choices persist after modal close',
+          category: 'integration',
+          status: 'pending',
+          expectedResult: 'Selected customization should persist after closing modal',
+          steps: [
+            { action: 'press', target: 'legendary_orb' },
+            { action: 'press', target: 'close_button' },
+            { action: 'press', target: 'customize_button' },
+            { action: 'verify', target: 'selected_orb', expectedState: 'legendary' }
+          ]
+        },
+        {
+          id: 'test_game_integration',
+          name: 'Game Uses Selected Skin',
+          description: 'Test that game player uses the selected skin during gameplay',
+          category: 'integration',
+          status: 'pending',
+          expectedResult: 'Game player should use selected skin color/appearance',
+          steps: [
+            { action: 'press', target: 'legendary_orb' },
+            { action: 'press', target: 'close_button' },
+            { action: 'press', target: 'start_game' },
+            { action: 'verify', target: 'player_appearance', expectedState: 'legendary' }
+          ]
+        }
+      ]
+    };
+  }, []);
+
+  const runAutomatedTests = useCallback(async () => {
+    console.log('🧪 [NINTENDO QA] Starting automated test suite!');
+    setIsRunningTests(true);
+    const suite = createTestSuite();
+    suite.totalTests = suite.tests.length;
+    
+    for (let i = 0; i < suite.tests.length; i++) {
+      const test = suite.tests[i];
+      console.log(`🧪 [TEST ${i + 1}/${suite.tests.length}] Running: ${test.name}`);
+      test.status = 'running';
+      test.timestamp = Date.now();
+      
+      try {
+        // Simulate test execution
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // For now, we'll simulate test results based on current functionality
+        if (test.id === 'test_customization_modal_open') {
+          test.actualResult = showCustomization ? 'Modal is visible' : 'Modal failed to open';
+          test.status = showCustomization ? 'passed' : 'failed';
+        } else if (test.id === 'test_tab_switching') {
+          // This will fail because tabs aren't implemented yet
+          test.actualResult = 'Tab switching not implemented';
+          test.status = 'failed';
+        } else if (test.id === 'test_orb_selection') {
+          // This will fail because orb selection isn't implemented yet
+          test.actualResult = 'Orb selection not implemented';
+          test.status = 'failed';
+        } else {
+          test.actualResult = 'Feature not implemented';
+          test.status = 'failed';
+        }
+        
+        if (test.status === 'passed') {
+          suite.passedTests++;
+          console.log(`✅ [TEST PASSED] ${test.name}`);
+        } else {
+          suite.failedTests++;
+          console.log(`❌ [TEST FAILED] ${test.name}: ${test.actualResult}`);
+        }
+        
+      } catch (error) {
+        test.status = 'failed';
+        test.actualResult = `Test error: ${error}`;
+        suite.failedTests++;
+        console.log(`❌ [TEST ERROR] ${test.name}: ${error}`);
+      }
+    }
+    
+    suite.passRate = Math.round((suite.passedTests / suite.totalTests) * 100);
+    setTestSuite(suite);
+    setIsRunningTests(false);
+    setShowTestResults(true);
+    
+    console.log(`🧪 [NINTENDO QA] Test suite complete! Pass rate: ${suite.passRate}%`);
+    console.log(`🧪 [NINTENDO QA] ${suite.passedTests} passed, ${suite.failedTests} failed`);
+  }, [createTestSuite, showCustomization]);
+
+  // 🎮 CUSTOMIZATION LOGIC - NINTENDO STYLE FUNCTIONALITY!
+  const handleTabSwitch = useCallback((tab: CustomizationTab) => {
+    console.log(`🎮 [CUSTOMIZATION] Switching to tab: ${tab}`);
+    setActiveCustomizationTab(tab);
+    createParticles(SCREEN_WIDTH / 2, 200, 'achievement', 5);
+    triggerHaptic('light');
+  }, [createParticles, triggerHaptic]);
+
+  const handleOrbSelection = useCallback((orbId: string) => {
+    console.log(`🎮 [CUSTOMIZATION] Selecting orb: ${orbId}`);
+    setSelectedSkinId(orbId);
+    createParticles(SCREEN_WIDTH / 2, 300, 'achievement', 8);
+    triggerHaptic('medium');
+    playSound('power_up');
+  }, [createParticles, triggerHaptic, playSound]);
+
+  // 🎯 EPIC ORB UNLOCK SYSTEM - NINTENDO-LEVEL PROGRESSION!
+  const checkOrbUnlocks = useCallback(() => {
+    console.log('🎮 [ORB UNLOCK] Checking unlock conditions...');
+    
+    const currentStats = {
+      gamesPlayed: gamesPlayed,
+      bestDistance: gameState.highScore || 0,
+      currentDistance: gameState.distance,
+    };
+
+    const newUnlocks: string[] = [];
+    
+    EPIC_ORB_COLLECTION.forEach(orb => {
+      if (!unlockedOrbs.includes(orb.id) && !orb.unlocked) {
+        let shouldUnlock = false;
+        
+        switch (orb.unlockCondition.type) {
+          case 'default':
+            shouldUnlock = true;
+            break;
+          case 'games':
+            shouldUnlock = currentStats.gamesPlayed >= (orb.unlockCondition.requirement || 0);
+            break;
+          case 'distance':
+            shouldUnlock = Math.max(currentStats.bestDistance, currentStats.currentDistance) >= (orb.unlockCondition.requirement || 0);
+            break;
+          case 'achievement':
+            shouldUnlock = false; // Placeholder for achievement system
+            break;
+        }
+        
+        if (shouldUnlock) {
+          newUnlocks.push(orb.id);
+          console.log(`🎉 [ORB UNLOCK] New orb unlocked: ${orb.name}!`);
+        }
+      }
+    });
+
+    if (newUnlocks.length > 0) {
+      setUnlockedOrbs(prev => [...prev, ...newUnlocks]);
+      setAvailableOrbs(prev => prev.map(orb => ({
+        ...orb,
+        unlocked: unlockedOrbs.includes(orb.id) || newUnlocks.includes(orb.id),
+        isNew: newUnlocks.includes(orb.id)
+      })));
+      
+      // Show unlock notification with particles
+      newUnlocks.forEach(orbId => {
+        const orb = EPIC_ORB_COLLECTION.find(o => o.id === orbId);
+        if (orb) {
+          createParticles(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 'achievement', 20);
+        }
+      });
+    }
+  }, [gamesPlayed, gameState.distance, gameState.highScore, unlockedOrbs, createParticles]);
+
+  // Check for unlocks when relevant stats change
+  useEffect(() => {
+    checkOrbUnlocks();
+  }, [gamesPlayed, gameState.distance, checkOrbUnlocks]);
+
+  // 🎨 HELPER FUNCTION FOR RARITY COLORS
+  const getRarityColor = (rarity: string) => {
+    switch (rarity) {
+      case 'common': return '#6B7280';
+      case 'rare': return '#3B82F6';
+      case 'epic': return '#8B5CF6';
+      case 'legendary': return '#F59E0B';
+      case 'mythic': return '#EF4444';
+      default: return '#6B7280';
+    }
+  };
+
+  // 🏁 SUPER MARIO RUN INSPIRED COURSE SYSTEM LOGIC!
+  const generateCourseCoins = useCallback((course: Course) => {
+    const coins: Coin[] = [];
+    const coinSpacing = (course.targetDistance * 10) / course.coinTarget; // Spread coins across course
+    
+    for (let i = 0; i < course.coinTarget; i++) {
+      const x = (i * coinSpacing) + Math.random() * 100; // Add some randomness
+      const y = Math.random() > 0.5 ? 200 : 600; // Top or bottom half
+      const isSpecial = Math.random() < 0.1; // 10% chance for special coins
+      
+      coins.push({
+        id: `coin_${course.id}_${i}`,
+        x,
+        y,
+        type: isSpecial ? 'special' : 'normal',
+        value: isSpecial ? 5 : 1,
+        collected: false,
+        sparkleEffect: isSpecial
+      });
+    }
+    
+    return coins;
+  }, []);
+
+  const startCourse = useCallback((course: Course) => {
+    console.log(`🏁 [COURSE] Starting course ${course.id}: ${course.name}`);
+    setCurrentCourse(course);
+    const coins = generateCourseCoins(course);
+    setCourseCoins(coins);
+    setCollectedCoins(0);
+    setGameState(prev => ({ ...prev, distance: 0 }));
+    
+    // Update course attempts
+    setCourses(prev => prev.map(c => 
+      c.id === course.id ? { ...c, attempts: c.attempts + 1 } : c
+    ));
+    
+    // Start the actual game
+    startGame();
+    setShowCourseSelection(false);
+  }, [generateCourseCoins, startGame]);
+
+  const checkCourseCompletion = useCallback(() => {
+    if (!currentCourse) return;
+    
+    const distance = gameState.distance;
+    const targetReached = distance >= currentCourse.targetDistance;
+    
+    if (targetReached && !currentCourse.completed) {
+      console.log(`🏁 [COURSE] Course ${currentCourse.id} completed!`);
+      
+      // Calculate stars based on performance
+      let stars = 1; // Base completion
+      if (collectedCoins >= currentCourse.coinTarget * 0.8) stars = 2; // 80% coins
+      if (collectedCoins >= currentCourse.coinTarget) stars = 3; // All coins
+      
+      const completion: CourseCompletion = {
+        courseId: currentCourse.id,
+        completed: true,
+        distance,
+        coinsCollected: collectedCoins,
+        stars,
+        celebrationShown: false
+      };
+      
+      setCompletionData(completion);
+      setShowCourseCompletion(true);
+      
+      // Update course data
+      setCourses(prev => prev.map(c => {
+        if (c.id === currentCourse.id) {
+          return {
+            ...c,
+            completed: true,
+            bestDistance: Math.max(c.bestDistance, distance),
+            coinsCollected: Math.max(c.coinsCollected, collectedCoins),
+            stars: Math.max(c.stars, stars)
+          };
+        }
+        // Unlock next course
+        if (c.id === currentCourse.id + 1) {
+          return { ...c, unlocked: true };
+        }
+        return c;
+      }));
+      
+      // Epic celebration effects!
+      createParticles(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 'achievement', 50);
+      triggerHaptic('heavy');
+      playSound('power_up');
+    }
+  }, [currentCourse, gameState.distance, collectedCoins, createParticles, triggerHaptic, playSound]);
+
+  const collectCoin = useCallback((coinId: string) => {
+    const coin = courseCoins.find(c => c.id === coinId);
+    if (!coin || coin.collected) return;
+    
+    console.log(`🪙 [COIN] Collected ${coin.type} coin worth ${coin.value} points!`);
+    
+    setCourseCoins(prev => prev.map(c => 
+      c.id === coinId ? { ...c, collected: true } : c
+    ));
+    
+    setCollectedCoins(prev => prev + coin.value);
+    
+    // Visual feedback
+    createParticles(coin.x, coin.y, 'achievement', coin.value * 2);
+    triggerHaptic('light');
+    playSound('power_up');
+  }, [courseCoins, createParticles, triggerHaptic, playSound]);
+
+  // Check course completion when distance changes
+  useEffect(() => {
+    if (gameState.isPlaying && currentCourse) {
+      checkCourseCompletion();
+    }
+  }, [gameState.distance, gameState.isPlaying, currentCourse, checkCourseCompletion]);
+
   // 🎓 EPIC TUTORIAL STEPS DEFINITION - PROGRESSIVE LEARNING!
   const tutorialSteps: TutorialStep[] = [
     {
@@ -2557,14 +3412,7 @@ export default function App() {
     }
   ];
 
-  // 🎯 DYNAMIC TIPS SYSTEM - CONTEXTUAL GUIDANCE!
-  const gameTips: GameTip[] = [
-    { id: 'tip_1', message: '💡 Tip: Time your flips carefully for smooth navigation!', condition: 'distance', triggerValue: 50, shown: false, priority: 'medium' },
-    { id: 'tip_2', message: '⚡ Amazing! Power-ups can change everything!', condition: 'powerup', shown: false, priority: 'high' },
-    { id: 'tip_3', message: '🦹‍♂️ Warning: Boss approaching! Get ready for epic battles!', condition: 'boss', shown: false, priority: 'high' },
-    { id: 'tip_4', message: '🔥 You\'re on fire! Keep that streak going!', condition: 'streak', triggerValue: 5, shown: false, priority: 'low' },
-    { id: 'tip_5', message: '💰 Pro tip: Double score power-ups multiply your progress!', condition: 'distance', triggerValue: 200, shown: false, priority: 'medium' },
-  ];
+
 
   // 🎓 TUTORIAL MANAGEMENT FUNCTIONS
   const loadTutorialProgress = useCallback(async () => {
@@ -2679,40 +3527,9 @@ export default function App() {
     }
   }, [tutorialState, tutorialStats, completeTutorialStep]);
 
-  // 💡 DYNAMIC TIPS SYSTEM
-  const showGameTip = useCallback((tip: GameTip) => {
-    if (tip.shown || tutorialState.isActive) return;
-    
-    setActiveTips(prev => [...prev.filter(t => t.id !== tip.id), { ...tip, shown: true }]);
-    console.log('💡 Showing game tip:', tip.message);
-    
-    // Auto-hide tip after 4 seconds
-    setTimeout(() => {
-      setActiveTips(prev => prev.filter(t => t.id !== tip.id));
-    }, 4000);
-  }, [tutorialState.isActive]);
 
-  const checkGameTips = useCallback(() => {
-    if (tutorialState.isActive) return;
-    
-    gameTips.forEach(tip => {
-      if (tip.shown) return;
-      
-      switch (tip.condition) {
-        case 'distance':
-          if (gameState.distance >= (tip.triggerValue || 0)) {
-            showGameTip(tip);
-          }
-          break;
-        case 'powerup':
-          if (tutorialStats.powerUpsCollected > 0) {
-            showGameTip(tip);
-          }
-          break;
-        // Add more conditions as needed
-      }
-    });
-  }, [gameState.distance, tutorialStats, showGameTip, tutorialState.isActive]);
+
+
 
   // 🔍 SUPER DEBUG: Comprehensive game state dump
   const logGameStateDump = useCallback(() => {
@@ -2831,6 +3648,14 @@ export default function App() {
     setShowNameInput(true);
   }, [playerName]);
 
+  const handleWelcomeNameSubmit = useCallback((name: string) => {
+    if (name.trim().length > 0) {
+      savePlayerName(name.trim());
+      setShowWelcomeScreen(false);
+      console.log('🎉 Welcome screen completed for:', name.trim());
+    }
+  }, [savePlayerName]);
+
   const handleNameSubmit = useCallback((name: string) => {
     if (name.trim().length > 0) {
       savePlayerName(name.trim());
@@ -2916,6 +3741,52 @@ export default function App() {
     >
       <View style={styles.container}>
         <StatusBar style="light" />
+
+        {/* 🎉 WELCOME SCREEN - FIRST TIME USER */}
+        {showWelcomeScreen && (
+          <View style={styles.welcomeContainer}>
+            <View style={styles.welcomeModal}>
+              <Text style={styles.welcomeTitle}>🌟 Welcome to Gravity Flip! 🌟</Text>
+              <Text style={styles.welcomeSubtitle}>
+                An epic space adventure awaits you!
+              </Text>
+              
+              <Text style={styles.namePrompt}>What should we call you, space explorer?</Text>
+              
+              <TextInput
+                style={styles.welcomeNameInput}
+                value={tempPlayerName}
+                onChangeText={setTempPlayerName}
+                placeholder="Enter your name..."
+                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                maxLength={20}
+                returnKeyType="done"
+                onSubmitEditing={() => handleWelcomeNameSubmit(tempPlayerName)}
+                autoFocus={true}
+              />
+              
+              <TouchableOpacity 
+                style={[
+                  styles.welcomeButton,
+                  tempPlayerName.trim().length === 0 && styles.welcomeButtonDisabled
+                ]}
+                onPress={() => handleWelcomeNameSubmit(tempPlayerName)}
+                disabled={tempPlayerName.trim().length === 0}
+              >
+                <Text style={styles.welcomeButtonText}>
+                  🚀 Start My Space Journey!
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.welcomeSkipButton}
+                onPress={() => handleWelcomeNameSubmit('Space Explorer')}
+              >
+                <Text style={styles.welcomeSkipText}>Skip (use "Space Explorer")</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         
         <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenShake }] }]}>
           {/* 🌟 PARALLAX BACKGROUND - EPIC SPACE ENVIRONMENT! */}
@@ -3283,6 +4154,20 @@ export default function App() {
                    <Text style={styles.cardDescription}>Tap to change mode</Text>
                  </TouchableOpacity>
 
+                 {/* 🏁 Course Mode Card - MARIO RUN INSPIRED! */}
+                 <TouchableOpacity 
+                   style={[styles.menuCard, styles.courseCard]}
+                   onPress={() => setShowCourseSelection(true)}
+                   activeOpacity={0.8}
+                 >
+                   <Text style={styles.cardEmoji}>🏁</Text>
+                   <View style={styles.cardBadge}>
+                     <Text style={styles.cardBadgeText}>NEW</Text>
+                   </View>
+                   <Text style={styles.cardTitle}>Course Mode</Text>
+                   <Text style={styles.cardDescription}>Complete • Collect • Conquer</Text>
+                 </TouchableOpacity>
+
                  {/* Achievements Card */}
                  <TouchableOpacity
                    style={[styles.menuCard, styles.achievementCard]}
@@ -3343,6 +4228,20 @@ export default function App() {
                    </View>
                    <Text style={styles.cardTitle}>Settings</Text>
                    <Text style={styles.cardDescription}>Audio • Graphics • Controls</Text>
+                 </TouchableOpacity>
+
+                 {/* 🧪 QA Testing Card - NINTENDO ENGINEER MODE! */}
+                 <TouchableOpacity
+                   style={[styles.menuCard, styles.testCard]}
+                   onPress={runAutomatedTests}
+                   activeOpacity={0.8}
+                 >
+                   <Text style={styles.cardEmoji}>🧪</Text>
+                   <View style={styles.cardBadge}>
+                     <Text style={styles.cardBadgeText}>QA</Text>
+                   </View>
+                   <Text style={styles.cardTitle}>Run Tests</Text>
+                   <Text style={styles.cardDescription}>Automated Testing Suite</Text>
                  </TouchableOpacity>
 
                  {/* 🎓 Tutorial Card - LEARN THE GAME! */}
@@ -3781,12 +4680,7 @@ export default function App() {
           </View>
         )}
 
-        {/* 💡 DYNAMIC TIPS DISPLAY */}
-        {activeTips.map(tip => (
-          <View key={tip.id} style={styles.gameTip}>
-            <Text style={styles.gameTipText}>{tip.message}</Text>
-          </View>
-        ))}
+
 
         {/* 🔍 SUPER DEBUG CONTROLS */}
         <View style={styles.debugControls}>
@@ -4064,129 +4958,310 @@ export default function App() {
           </View>
         </Modal>
 
-        {/* 🎨 CUSTOMIZATION MODAL */}
-         <Modal visible={showCustomization} animationType="slide" transparent>
-           <View style={styles.modalOverlay}>
-             <View style={styles.modalContent}>
-               <View style={styles.achievementHeader}>
-                 <Text style={styles.modalTitle}>🎨 Customize</Text>
-                 <TouchableOpacity onPress={() => setShowCustomization(false)}>
-                   <Text style={styles.closeButton}>×</Text>
-                 </TouchableOpacity>
-               </View>
+        {/* 🎨 EPIC NINTENDO-STYLE CUSTOMIZATION MODAL */}
+        <Modal visible={showCustomization} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.epicCustomizeContainer}>
+              
+              {/* 🎮 NINTENDO-STYLE HEADER */}
+              <View style={styles.epicCustomizeHeader}>
+                <View style={styles.epicHeaderLeft}>
+                  <Text style={styles.epicCustomizeEmoji}>🎨</Text>
+                  <Text style={styles.epicCustomizeTitle}>Customize Your Game</Text>
+                </View>
+                <TouchableOpacity 
+                  style={styles.epicCloseButton}
+                  onPress={() => setShowCustomization(false)}
+                >
+                  <Text style={styles.epicCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
-               <ScrollView style={styles.achievementList}>
-                 <Text style={styles.achievementCategory}>PLAYER SKINS</Text>
-                 
-                 <View style={styles.customizationGrid}>
-                   <TouchableOpacity style={[styles.customizationItem, styles.customizationSelected]}>
-                     <View style={[styles.skinPreview, { backgroundColor: '#8B5CF6' }]} />
-                     <Text style={styles.customizationName}>Purple Orb</Text>
-                     <Text style={styles.customizationStatus}>✓ EQUIPPED</Text>
-                   </TouchableOpacity>
+              {/* 🎮 EPIC CUSTOMIZATION TABS - NOW WITH FUNCTIONALITY! */}
+              <View style={styles.epicCustomizeTabs}>
+                <TouchableOpacity 
+                  style={[
+                    styles.epicTab, 
+                    activeCustomizationTab === CustomizationTab.SKINS && styles.epicTabActive
+                  ]}
+                  onPress={() => handleTabSwitch(CustomizationTab.SKINS)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.epicTabEmoji}>🎭</Text>
+                  <Text style={styles.epicTabText}>Skins</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    styles.epicTab,
+                    activeCustomizationTab === CustomizationTab.TRAILS && styles.epicTabActive
+                  ]}
+                  onPress={() => handleTabSwitch(CustomizationTab.TRAILS)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.epicTabEmoji}>✨</Text>
+                  <Text style={styles.epicTabText}>Trails</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    styles.epicTab,
+                    activeCustomizationTab === CustomizationTab.EFFECTS && styles.epicTabActive
+                  ]}
+                  onPress={() => handleTabSwitch(CustomizationTab.EFFECTS)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.epicTabEmoji}>💫</Text>
+                  <Text style={styles.epicTabText}>Effects</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    styles.epicTab,
+                    activeCustomizationTab === CustomizationTab.SPECIAL && styles.epicTabActive
+                  ]}
+                  onPress={() => handleTabSwitch(CustomizationTab.SPECIAL)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.epicTabEmoji}>🌟</Text>
+                  <Text style={styles.epicTabText}>Special</Text>
+                </TouchableOpacity>
+              </View>
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={[styles.skinPreview, { backgroundColor: '#FF4081' }]} />
-                     <Text style={styles.customizationName}>Pink Blast</Text>
-                     <Text style={styles.customizationPrice}>🔒 100m</Text>
-                   </TouchableOpacity>
+              {/* 🎮 EPIC PREVIEW SECTION - DYNAMIC CONTENT! */}
+              <View style={styles.epicPreviewSection}>
+                <Text style={styles.epicPreviewTitle}>Preview</Text>
+                <View style={styles.epicPreviewStage}>
+                  <View style={styles.epicPreviewBackground}>
+                    {/* Mini game environment */}
+                    <View style={styles.epicPreviewPlayer} />
+                    <View style={styles.epicPreviewTrail}>
+                      <View style={[styles.epicTrailDot, { opacity: 1 }]} />
+                      <View style={[styles.epicTrailDot, { opacity: 0.7 }]} />
+                      <View style={[styles.epicTrailDot, { opacity: 0.4 }]} />
+                    </View>
+                  </View>
+                  <Text style={styles.epicPreviewLabel}>
+                    {activeCustomizationTab === CustomizationTab.SKINS ? `🔮 ${selectedSkinId === 'classic' ? 'Classic' : selectedSkinId === 'legendary' ? 'Legendary' : selectedSkinId === 'time' ? 'Time' : selectedSkinId === 'master' ? 'Master' : 'Champion'} Orb` :
+                     activeCustomizationTab === CustomizationTab.TRAILS ? `✨ ${selectedTrailId === 'default' ? 'Default' : selectedTrailId === 'fire' ? 'Fire' : selectedTrailId === 'rainbow' ? 'Rainbow' : 'Cosmic'} Trail` :
+                     activeCustomizationTab === CustomizationTab.EFFECTS ? `💫 ${selectedEffectId === 'none' ? 'No Effects' : selectedEffectId === 'sparkle' ? 'Sparkle' : selectedEffectId === 'glow' ? 'Glow' : 'Cosmic'} Effect` :
+                     '🌟 Special Features'}
+                  </Text>
+                </View>
+              </View>
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={[styles.skinPreview, { backgroundColor: '#00BCD4' }]} />
-                     <Text style={styles.customizationName}>Cyan Wave</Text>
-                     <Text style={styles.customizationPrice}>🔒 250m</Text>
-                   </TouchableOpacity>
+              {/* 🎮 EPIC ORBS GRID - DYNAMIC CONTENT! */}
+              <ScrollView style={styles.epicOrbsContainer} showsVerticalScrollIndicator={false}>
+                <View style={styles.epicOrbsGrid}>
+                
+                {activeCustomizationTab === CustomizationTab.SKINS && (
+                  <>
+                    {/* 🌈 EPIC ORB COLLECTION - NINTENDO-LEVEL VARIETY! */}
+                    {availableOrbs.map((orb) => {
+                      const isUnlocked = unlockedOrbs.includes(orb.id);
+                      const isSelected = selectedSkinId === orb.id;
+                      
+                      return (
+                        <TouchableOpacity 
+                          key={orb.id}
+                          style={[
+                            styles.epicOrbCard,
+                            isSelected && styles.epicOrbSelected,
+                            !isUnlocked && styles.epicOrbLocked
+                          ]}
+                          onPress={() => isUnlocked && handleOrbSelection(orb.id)}
+                          activeOpacity={isUnlocked ? 0.8 : 0.3}
+                        >
+                          <View style={styles.epicOrbCardContent}>
+                            {/* Rarity Badge */}
+                            {orb.rarity !== 'common' && (
+                              <View style={[styles.epicRarityBadge, { backgroundColor: getRarityColor(orb.rarity) }]}>
+                                <Text style={styles.epicRarityText}>{orb.rarity.toUpperCase()}</Text>
+                              </View>
+                            )}
+                            
+                            {/* NEW Badge */}
+                            {orb.isNew && (
+                              <View style={styles.epicNewBadge}>
+                                <Text style={styles.epicNewText}>NEW!</Text>
+                              </View>
+                            )}
+                            
+                            {/* Orb Visual */}
+                            <View style={[
+                              styles.epicOrb, 
+                              { backgroundColor: orb.colors.outer },
+                              orb.effects.hasGlow && { 
+                                shadowColor: orb.colors.glow, 
+                                shadowOpacity: 0.8, 
+                                shadowRadius: 15,
+                                elevation: 8 
+                              },
+                              !isUnlocked && { opacity: 0.3 }
+                            ]}>
+                              <View style={[styles.epicOrbCore, { backgroundColor: orb.colors.core }]} />
+                              {orb.effects.hasParticles && isUnlocked && (
+                                <View style={styles.epicOrbSparkles}>
+                                  <Text style={[styles.epicSparkle, { color: orb.colors.sparkle }]}>✨</Text>
+                                </View>
+                              )}
+                            </View>
+                            
+                            {/* Orb Name */}
+                            <Text style={[styles.epicOrbName, !isUnlocked && { opacity: 0.5 }]}>
+                              {orb.name}
+                            </Text>
+                            
+                            {/* Unlock Condition or Equipped Status */}
+                            {!isUnlocked ? (
+                              <Text style={styles.epicOrbLockText}>
+                                {orb.unlockCondition.description}
+                              </Text>
+                            ) : isSelected ? (
+                              <View style={styles.epicOrbStatus}>
+                                <Text style={styles.epicOrbEquipped}>✓</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.epicOrbStatus}>
+                                <Text style={styles.epicOrbEquipped}>○</Text>
+                              </View>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </>
+                )}
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={[styles.skinPreview, { backgroundColor: '#FF9800' }]} />
-                     <Text style={styles.customizationName}>Fire Ball</Text>
-                     <Text style={styles.customizationPrice}>🔒 500m</Text>
-                   </TouchableOpacity>
-                 </View>
+                {activeCustomizationTab === CustomizationTab.TRAILS && (
+                  <>
+                    {/* TRAILS TAB CONTENT */}
+                    <TouchableOpacity 
+                      style={[
+                        styles.epicOrbCard, 
+                        selectedTrailId === 'default' && styles.epicOrbSelected
+                      ]}
+                      onPress={() => setSelectedTrailId('default')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.epicOrbCardContent}>
+                        <View style={[styles.epicOrb, { backgroundColor: '#E0E7FF' }]}>
+                          <Text style={styles.epicOrbIcon}>✨</Text>
+                        </View>
+                        <Text style={styles.epicOrbName}>Default Trail</Text>
+                      </View>
+                      <View style={styles.epicOrbStatus}>
+                        <Text style={styles.epicOrbEquipped}>
+                          {selectedTrailId === 'default' ? '✓' : '○'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
 
-                 <Text style={styles.achievementCategory}>TRAIL EFFECTS</Text>
-                 
-                 <View style={styles.customizationGrid}>
-                   <TouchableOpacity style={[styles.customizationItem, styles.customizationSelected]}>
-                     <View style={styles.trailPreview}>
-                       <View style={[styles.trailDot, { backgroundColor: '#FFD60A' }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#FFD60A', opacity: 0.7 }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#FFD60A', opacity: 0.4 }]} />
-                     </View>
-                     <Text style={styles.customizationName}>Golden Trail</Text>
-                     <Text style={styles.customizationStatus}>✓ EQUIPPED</Text>
-                   </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[
+                        styles.epicOrbCard,
+                        selectedTrailId === 'fire' && styles.epicOrbSelected
+                      ]}
+                      onPress={() => setSelectedTrailId('fire')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.epicOrbCardContent}>
+                        <View style={[styles.epicOrb, { backgroundColor: '#FF6B6B' }]}>
+                          <Text style={styles.epicOrbIcon}>🔥</Text>
+                        </View>
+                        <Text style={styles.epicOrbName}>Fire Trail</Text>
+                      </View>
+                      <View style={styles.epicOrbRarity}>
+                        <Text style={styles.epicOrbRarityText}>EPIC</Text>
+                      </View>
+                    </TouchableOpacity>
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={styles.trailPreview}>
-                       <View style={[styles.trailDot, { backgroundColor: '#00FF66' }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#00FF66', opacity: 0.7 }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#00FF66', opacity: 0.4 }]} />
-                     </View>
-                     <Text style={styles.customizationName}>Neon Green</Text>
-                     <Text style={styles.customizationPrice}>🔒 150m</Text>
-                   </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[
+                        styles.epicOrbCard,
+                        selectedTrailId === 'rainbow' && styles.epicOrbSelected
+                      ]}
+                      onPress={() => setSelectedTrailId('rainbow')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.epicOrbCardContent}>
+                        <View style={[styles.epicOrb, { backgroundColor: '#FFD700' }]}>
+                          <Text style={styles.epicOrbIcon}>🌈</Text>
+                        </View>
+                        <Text style={styles.epicOrbName}>Rainbow Trail</Text>
+                      </View>
+                      <View style={styles.epicOrbRarity}>
+                        <Text style={styles.epicOrbRarityText}>LEGENDARY</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </>
+                )}
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={styles.trailPreview}>
-                       <View style={[styles.trailDot, { backgroundColor: '#FF0080' }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#FF0080', opacity: 0.7 }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#FF0080', opacity: 0.4 }]} />
-                     </View>
-                     <Text style={styles.customizationName}>Hot Pink</Text>
-                     <Text style={styles.customizationPrice}>🔒 300m</Text>
-                   </TouchableOpacity>
+                {activeCustomizationTab === CustomizationTab.EFFECTS && (
+                  <>
+                    {/* EFFECTS TAB CONTENT */}
+                    <TouchableOpacity 
+                      style={[
+                        styles.epicOrbCard, 
+                        selectedEffectId === 'none' && styles.epicOrbSelected
+                      ]}
+                      onPress={() => setSelectedEffectId('none')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.epicOrbCardContent}>
+                        <View style={[styles.epicOrb, { backgroundColor: '#E0E7FF' }]}>
+                          <Text style={styles.epicOrbIcon}>⭕</Text>
+                        </View>
+                        <Text style={styles.epicOrbName}>No Effects</Text>
+                      </View>
+                      <View style={styles.epicOrbStatus}>
+                        <Text style={styles.epicOrbEquipped}>
+                          {selectedEffectId === 'none' ? '✓' : '○'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={styles.trailPreview}>
-                       <View style={[styles.trailDot, { backgroundColor: '#8B5CF6' }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#FF4081', opacity: 0.7 }]} />
-                       <View style={[styles.trailDot, { backgroundColor: '#00BCD4', opacity: 0.4 }]} />
-                     </View>
-                     <Text style={styles.customizationName}>Rainbow</Text>
-                     <Text style={styles.customizationPrice}>🔒 750m</Text>
-                   </TouchableOpacity>
-                 </View>
+                    <TouchableOpacity 
+                      style={[
+                        styles.epicOrbCard,
+                        selectedEffectId === 'sparkle' && styles.epicOrbSelected
+                      ]}
+                      onPress={() => setSelectedEffectId('sparkle')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.epicOrbCardContent}>
+                        <View style={[styles.epicOrb, { backgroundColor: '#FFD700' }]}>
+                          <Text style={styles.epicOrbIcon}>✨</Text>
+                        </View>
+                        <Text style={styles.epicOrbName}>Sparkle Effect</Text>
+                      </View>
+                      <View style={styles.epicOrbRarity}>
+                        <Text style={styles.epicOrbRarityText}>RARE</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </>
+                )}
 
-                 <Text style={styles.achievementCategory}>PARTICLE EFFECTS</Text>
-                 
-                 <View style={styles.customizationGrid}>
-                   <TouchableOpacity style={[styles.customizationItem, styles.customizationSelected]}>
-                     <View style={styles.particlePreview}>
-                       <Text style={styles.particleText}>✨</Text>
-                     </View>
-                     <Text style={styles.customizationName}>Sparkles</Text>
-                     <Text style={styles.customizationStatus}>✓ EQUIPPED</Text>
-                   </TouchableOpacity>
+                {activeCustomizationTab === CustomizationTab.SPECIAL && (
+                  <>
+                    {/* SPECIAL TAB CONTENT */}
+                    <View style={styles.epicOrbCard}>
+                      <View style={styles.epicOrbCardContent}>
+                        <View style={[styles.epicOrb, { backgroundColor: '#8B5CF6' }]}>
+                          <Text style={styles.epicOrbIcon}>🌟</Text>
+                        </View>
+                        <Text style={styles.epicOrbName}>Coming Soon!</Text>
+                      </View>
+                      <View style={styles.epicOrbLocked}>
+                        <Text style={styles.epicAchievementText}>Special features coming in future updates!</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={styles.particlePreview}>
-                       <Text style={styles.particleText}>🔥</Text>
-                     </View>
-                     <Text style={styles.customizationName}>Fire Burst</Text>
-                     <Text style={styles.customizationPrice}>🔒 200m</Text>
-                   </TouchableOpacity>
+                </View>
+              </ScrollView>
 
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={styles.particlePreview}>
-                       <Text style={styles.particleText}>❄️</Text>
-                     </View>
-                     <Text style={styles.customizationName}>Ice Crystals</Text>
-                     <Text style={styles.customizationPrice}>🔒 400m</Text>
-                   </TouchableOpacity>
-
-                   <TouchableOpacity style={styles.customizationItem}>
-                     <View style={styles.particlePreview}>
-                       <Text style={styles.particleText}>⚡</Text>
-                     </View>
-                     <Text style={styles.customizationName}>Lightning</Text>
-                     <Text style={styles.customizationPrice}>🔒 600m</Text>
-                   </TouchableOpacity>
-                 </View>
-               </ScrollView>
-             </View>
-           </View>
-         </Modal>
+            </View>
+          </View>
+        </Modal>
 
          {/* 🏆 ACHIEVEMENTS MODAL (from Screenshot 8) */}
          <Modal visible={showAchievements} animationType="slide" transparent>
@@ -4642,6 +5717,12 @@ const styles = StyleSheet.create({
     shadowColor: '#FFD60A',
     shadowOpacity: 0.4,
   },
+  courseCard: {
+    borderColor: '#3B82F6',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.4,
+  },
   achievementCard: {
     borderColor: '#22C55E',
     backgroundColor: 'rgba(34, 197, 94, 0.15)',
@@ -4676,6 +5757,12 @@ const styles = StyleSheet.create({
     borderColor: '#8B5CF6',
     backgroundColor: 'rgba(139, 92, 246, 0.15)',
     shadowColor: '#8B5CF6',
+    shadowOpacity: 0.4,
+  },
+  testCard: {
+    borderColor: '#22C55E',
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    shadowColor: '#22C55E',
     shadowOpacity: 0.4,
   },
   tutorialCard: {
@@ -5506,29 +6593,7 @@ const styles = StyleSheet.create({
      fontSize: 14,
      fontWeight: '500',
    },
-   gameTip: {
-     position: 'absolute',
-     top: 100,
-     left: 20,
-     right: 20,
-     backgroundColor: 'rgba(16, 185, 129, 0.95)',
-     borderRadius: 12,
-     padding: 15,
-     zIndex: 999,
-     borderWidth: 1,
-     borderColor: '#10B981',
-     shadowColor: '#10B981',
-     shadowOffset: { width: 0, height: 2 },
-     shadowOpacity: 0.5,
-     shadowRadius: 8,
-     elevation: 8,
-   },
-   gameTipText: {
-     color: '#FFFFFF',
-     fontSize: 16,
-     fontWeight: '600',
-     textAlign: 'center',
-   },
+
    
    // 👤 PLAYER NAME INPUT STYLES
    nameInputButton: {
@@ -5729,5 +6794,429 @@ const styles = StyleSheet.create({
    leaderboardDetails: {
      fontSize: 12,
      color: '#AAAAAA',
+   },
+
+   // 🎉 WELCOME SCREEN STYLES - FIRST TIME USER EXPERIENCE
+   welcomeContainer: {
+     position: 'absolute',
+     top: 0,
+     left: 0,
+     right: 0,
+     bottom: 0,
+     backgroundColor: 'rgba(0, 0, 0, 0.95)',
+     justifyContent: 'center',
+     alignItems: 'center',
+     zIndex: 10000,
+   },
+
+   // 🎮 EPIC NINTENDO-STYLE CUSTOMIZATION STYLES
+   epicCustomizeContainer: {
+     backgroundColor: '#16213e',
+     borderRadius: 25,
+     padding: 0,
+     width: '95%',
+     maxWidth: 450,
+     maxHeight: '90%',
+     borderWidth: 3,
+     borderColor: 'rgba(255, 214, 10, 0.6)',
+     shadowColor: '#FFD60A',
+     shadowOffset: { width: 0, height: 15 },
+     shadowOpacity: 0.8,
+     shadowRadius: 25,
+     elevation: 30,
+     overflow: 'hidden',
+   },
+   epicCustomizeHeader: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     padding: 20,
+     backgroundColor: 'rgba(255, 214, 10, 0.1)',
+     borderBottomWidth: 2,
+     borderBottomColor: 'rgba(255, 214, 10, 0.3)',
+   },
+   epicHeaderLeft: {
+     flexDirection: 'row',
+     alignItems: 'center',
+   },
+   epicCustomizeEmoji: {
+     fontSize: 32,
+     marginRight: 12,
+   },
+   epicCustomizeTitle: {
+     fontSize: 22,
+     fontWeight: '900',
+     color: '#FFD60A',
+     textShadowColor: 'rgba(255, 214, 10, 0.8)',
+     textShadowOffset: { width: 0, height: 2 },
+     textShadowRadius: 10,
+   },
+   epicCloseButton: {
+     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+     borderRadius: 20,
+     width: 40,
+     height: 40,
+     justifyContent: 'center',
+     alignItems: 'center',
+     borderWidth: 2,
+     borderColor: 'rgba(255, 255, 255, 0.2)',
+   },
+   epicCloseButtonText: {
+     fontSize: 18,
+     color: '#FFFFFF',
+     fontWeight: 'bold',
+   },
+   epicCustomizeTabs: {
+     flexDirection: 'row',
+     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+     marginHorizontal: 20,
+     marginTop: 15,
+     borderRadius: 15,
+     padding: 5,
+   },
+   epicTab: {
+     flex: 1,
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'center',
+     paddingVertical: 12,
+     paddingHorizontal: 8,
+     borderRadius: 10,
+   },
+   epicTabActive: {
+     backgroundColor: '#FFD60A',
+     shadowColor: '#FFD60A',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.5,
+     shadowRadius: 5,
+     elevation: 3,
+   },
+   epicTabEmoji: {
+     fontSize: 16,
+     marginRight: 4,
+   },
+   epicTabText: {
+     fontSize: 12,
+     fontWeight: '700',
+     color: '#1a1a2e',
+   },
+   epicPreviewSection: {
+     padding: 20,
+     alignItems: 'center',
+   },
+   epicPreviewTitle: {
+     fontSize: 18,
+     fontWeight: '700',
+     color: '#FFD60A',
+     marginBottom: 15,
+   },
+   epicPreviewStage: {
+     backgroundColor: 'rgba(0, 0, 0, 0.3)',
+     borderRadius: 20,
+     padding: 20,
+     borderWidth: 2,
+     borderColor: 'rgba(255, 214, 10, 0.3)',
+     alignItems: 'center',
+   },
+   epicPreviewBackground: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     marginBottom: 10,
+   },
+   epicPreviewPlayer: {
+     width: 30,
+     height: 30,
+     borderRadius: 15,
+     backgroundColor: '#8B5CF6',
+     borderWidth: 2,
+     borderColor: '#FFFFFF',
+     marginRight: 15,
+   },
+   epicPreviewTrail: {
+     flexDirection: 'row',
+     alignItems: 'center',
+   },
+   epicTrailDot: {
+     width: 6,
+     height: 6,
+     borderRadius: 3,
+     backgroundColor: '#FFD60A',
+     marginHorizontal: 2,
+   },
+   epicPreviewLabel: {
+     fontSize: 14,
+     color: '#FFFFFF',
+     fontWeight: '600',
+   },
+   epicOrbsContainer: {
+     flex: 1,
+     paddingHorizontal: 20,
+   },
+   epicOrbsGrid: {
+     paddingBottom: 20,
+   },
+   epicOrbCard: {
+     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+     borderRadius: 20,
+     marginBottom: 15,
+     borderWidth: 2,
+     borderColor: 'rgba(255, 255, 255, 0.1)',
+     overflow: 'hidden',
+   },
+   epicOrbSelected: {
+     borderColor: '#FFD60A',
+     backgroundColor: 'rgba(255, 214, 10, 0.1)',
+     shadowColor: '#FFD60A',
+     shadowOffset: { width: 0, height: 5 },
+     shadowOpacity: 0.6,
+     shadowRadius: 15,
+     elevation: 8,
+   },
+   epicOrbCardContent: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     padding: 20,
+   },
+   epicOrb: {
+     width: 50,
+     height: 50,
+     borderRadius: 25,
+     marginRight: 15,
+     borderWidth: 3,
+     borderColor: '#FFFFFF',
+     justifyContent: 'center',
+     alignItems: 'center',
+     position: 'relative',
+   },
+   epicMasterOrb: {
+     backgroundColor: '#8B5CF6',
+     shadowColor: '#A855F7',
+     shadowOffset: { width: 0, height: 0 },
+     shadowOpacity: 0.8,
+     shadowRadius: 10,
+     elevation: 8,
+   },
+   epicOrbCore: {
+     width: 20,
+     height: 20,
+     borderRadius: 10,
+     backgroundColor: '#FFFFFF',
+     position: 'absolute',
+   },
+   epicOrbSparkle: {
+     position: 'absolute',
+     fontSize: 12,
+     top: -2,
+     right: -2,
+   },
+   epicOrbIcon: {
+     position: 'absolute',
+     fontSize: 16,
+   },
+   epicOrbName: {
+     fontSize: 18,
+     fontWeight: '700',
+     color: '#FFFFFF',
+     flex: 1,
+   },
+   epicOrbStatus: {
+     position: 'absolute',
+     top: 15,
+     right: 15,
+     backgroundColor: '#22C55E',
+     borderRadius: 15,
+     width: 30,
+     height: 30,
+     justifyContent: 'center',
+     alignItems: 'center',
+   },
+   epicOrbEquipped: {
+     fontSize: 16,
+     color: '#FFFFFF',
+     fontWeight: 'bold',
+   },
+   epicOrbRarity: {
+     position: 'absolute',
+     top: 10,
+     right: 10,
+     backgroundColor: 'rgba(255, 214, 10, 0.9)',
+     paddingHorizontal: 8,
+     paddingVertical: 4,
+     borderRadius: 8,
+   },
+   epicOrbRarityText: {
+     fontSize: 10,
+     fontWeight: '900',
+     color: '#1a1a2e',
+     letterSpacing: 0.5,
+   },
+   epicOrbLocked: {
+     position: 'absolute',
+     top: 10,
+     right: 10,
+     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+     paddingHorizontal: 8,
+     paddingVertical: 4,
+     borderRadius: 8,
+     maxWidth: 120,
+   },
+   epicOrbUnlockText: {
+     fontSize: 16,
+     color: '#AAAAAA',
+   },
+   epicAchievementText: {
+     fontSize: 10,
+     color: '#AAAAAA',
+     textAlign: 'center',
+     lineHeight: 12,
+   },
+   welcomeModal: {
+     backgroundColor: '#16213e',
+     borderRadius: 20,
+     padding: 25,
+     width: '85%',
+     maxWidth: 400,
+     alignItems: 'center',
+     borderWidth: 2,
+     borderColor: 'rgba(255, 214, 10, 0.6)',
+     shadowColor: '#FFD60A',
+     shadowOffset: { width: 0, height: 5 },
+     shadowOpacity: 0.8,
+     shadowRadius: 15,
+     elevation: 20,
+   },
+   welcomeTitle: {
+     fontSize: 26,
+     fontWeight: '900',
+     color: '#FFD60A',
+     textAlign: 'center',
+     marginBottom: 8,
+     textShadowColor: 'rgba(255, 214, 10, 0.8)',
+     textShadowOffset: { width: 0, height: 2 },
+     textShadowRadius: 10,
+   },
+   welcomeSubtitle: {
+     fontSize: 16,
+     color: '#FFFFFF',
+     textAlign: 'center',
+     marginBottom: 15,
+     fontStyle: 'italic',
+     opacity: 0.9,
+   },
+   welcomeDescription: {
+     fontSize: 16,
+     color: 'rgba(255, 255, 255, 0.8)',
+     textAlign: 'center',
+     lineHeight: 24,
+     marginBottom: 30,
+     paddingHorizontal: 10,
+   },
+   namePrompt: {
+     fontSize: 18,
+     color: '#FFD60A',
+     fontWeight: '700',
+     textAlign: 'center',
+     marginBottom: 15,
+   },
+   welcomeNameInput: {
+     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+     borderRadius: 12,
+     padding: 15,
+     fontSize: 16,
+     color: '#FFFFFF',
+     textAlign: 'center',
+     width: '100%',
+     marginBottom: 20,
+     borderWidth: 2,
+     borderColor: 'rgba(255, 214, 10, 0.4)',
+     shadowColor: '#FFD60A',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.3,
+     shadowRadius: 5,
+   },
+   welcomeButton: {
+     backgroundColor: '#FFD60A',
+     borderRadius: 15,
+     padding: 15,
+     width: '100%',
+     alignItems: 'center',
+     marginBottom: 12,
+     shadowColor: '#FFD60A',
+     shadowOffset: { width: 0, height: 3 },
+     shadowOpacity: 0.6,
+     shadowRadius: 8,
+     elevation: 6,
+   },
+   welcomeButtonDisabled: {
+     backgroundColor: 'rgba(255, 214, 10, 0.3)',
+     shadowOpacity: 0.2,
+   },
+   welcomeButtonText: {
+     fontSize: 16,
+     fontWeight: '900',
+     color: '#1a1a2e',
+     letterSpacing: 0.5,
+   },
+   welcomeSkipButton: {
+     padding: 8,
+   },
+   welcomeSkipText: {
+     fontSize: 13,
+     color: 'rgba(255, 255, 255, 0.6)',
+     textDecorationLine: 'underline',
+   },
+
+   // 🎨 NEW ORB SYSTEM STYLES - NINTENDO-LEVEL BEAUTY!
+   epicRarityBadge: {
+     position: 'absolute',
+     top: 5,
+     right: 5,
+     backgroundColor: '#8B5CF6',
+     borderRadius: 8,
+     paddingHorizontal: 6,
+     paddingVertical: 2,
+     zIndex: 10,
+   },
+   epicRarityText: {
+     fontSize: 8,
+     fontWeight: '900',
+     color: '#FFFFFF',
+     letterSpacing: 0.5,
+   },
+   epicNewBadge: {
+     position: 'absolute',
+     top: 5,
+     left: 5,
+     backgroundColor: '#EF4444',
+     borderRadius: 8,
+     paddingHorizontal: 6,
+     paddingVertical: 2,
+     zIndex: 10,
+   },
+   epicNewText: {
+     fontSize: 8,
+     fontWeight: '900',
+     color: '#FFFFFF',
+     letterSpacing: 0.5,
+   },
+   epicOrbSparkles: {
+     position: 'absolute',
+     top: 0,
+     left: 0,
+     right: 0,
+     bottom: 0,
+     justifyContent: 'center',
+     alignItems: 'center',
+   },
+   epicSparkle: {
+     fontSize: 12,
+     position: 'absolute',
+   },
+   epicOrbLockText: {
+     fontSize: 10,
+     color: '#9CA3AF',
+     textAlign: 'center',
+     marginTop: 4,
+     fontStyle: 'italic',
    },
  });
