@@ -14,7 +14,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+// Audio system - using Web Audio API for better compatibility
 
 // Get device dimensions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -542,19 +542,10 @@ export default function App() {
    const [particles, setParticles] = useState<Particle[]>([]);
    const [trailParticles, setTrailParticles] = useState<TrailParticle[]>([]);
 
-  // 🎵 EPIC AUDIO SYSTEM SETUP
-  const flipAudioPlayer = useAudioPlayer(null);
-  const gameOverAudioPlayer = useAudioPlayer(null);
-  const startAudioPlayer = useAudioPlayer(null);
-  const powerUpAudioPlayer = useAudioPlayer(null);
-  const achievementAudioPlayer = useAudioPlayer(null);
-   
-  // Get player statuses for feedback
-  const flipAudioStatus = useAudioPlayerStatus(flipAudioPlayer);
-  const gameOverAudioStatus = useAudioPlayerStatus(gameOverAudioPlayer);
-  const startAudioStatus = useAudioPlayerStatus(startAudioPlayer);
-  const powerUpAudioStatus = useAudioPlayerStatus(powerUpAudioPlayer);
-  const achievementAudioStatus = useAudioPlayerStatus(achievementAudioPlayer);
+     // 🎵 EPIC AUDIO SYSTEM SETUP - FIXED VERSION!
+   const audioContextRef = useRef<AudioContext | null>(null);
+   const audioBuffersRef = useRef<Record<string, AudioBuffer>>({});
+   const currentSettingsRef = useRef<GameSettings | null>(null);
 
   // 🎪 ANIMATIONS
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -601,78 +592,107 @@ export default function App() {
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
   const obstacleSpawnRef = useRef<NodeJS.Timeout | null>(null);
 
-     // 🎵 SOUND GENERATION FUNCTIONS
-   const generateFlipSound = useCallback(() => {
-     // Generate a crisp flip sound using Web Audio API frequencies
-     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmJABjiV3eyXOz4JI37F8N2QQgoUXLDl5qtYFwlFnt/yv2E='; // Placeholder for flip sound
+     // 🎵 SOUND GENERATION FUNCTIONS - REMOVED (using Web Audio API instead)
+
+   // 🎵 EPIC AUDIO SYSTEM + SUPER DEBUG - FIXED VERSION!
+   const initializeAudio = useCallback(() => {
+     try {
+       if (typeof window !== 'undefined' && window.AudioContext) {
+         audioContextRef.current = new AudioContext();
+         console.log('[AUDIO] 🎵 Audio context initialized successfully');
+       }
+     } catch (error) {
+       console.error('[AUDIO] ❌ Failed to initialize audio context:', error);
+     }
    }, []);
 
-   const generateGameOverSound = useCallback(() => {
-     // Generate a dramatic descending game over sound
-     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmRABzuU3O2ZOz8HInzD8d+RQwsVXbLn5qpXFglDnt7zv2I='; // Placeholder for game over sound
+   const createAudioBuffer = useCallback((frequencies: number[], duration: number = 0.1): AudioBuffer | null => {
+     if (!audioContextRef.current) return null;
+     
+     try {
+       const sampleRate = audioContextRef.current.sampleRate;
+       const buffer = audioContextRef.current.createBuffer(1, sampleRate * duration, sampleRate);
+       const channelData = buffer.getChannelData(0);
+       
+       for (let i = 0; i < channelData.length; i++) {
+         const time = i / sampleRate;
+         let sample = 0;
+         
+         frequencies.forEach((freq, index) => {
+           const amplitude = 0.3 * Math.exp(-time * 2); // Decay envelope
+           sample += amplitude * Math.sin(2 * Math.PI * freq * time);
+         });
+         
+         channelData[i] = Math.max(-1, Math.min(1, sample));
+       }
+       
+       return buffer;
+     } catch (error) {
+       console.error('[AUDIO] ❌ Failed to create audio buffer:', error);
+       return null;
+     }
    }, []);
 
-   const generateStartSound = useCallback(() => {
-     // Generate an uplifting start sound with rising tones
-     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmVBBzqT3O6aPUAIJX7E8d6QQwsVXLHm5alXFwlDnN3zv2M='; // Placeholder for start sound
-   }, []);
-
-   const generatePowerUpSound = useCallback(() => {
-     // Generate a satisfying power-up chime sound
-     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmZCBzmS2+6bPkEJJn/F8N6PQgsVW7Dl5ahYGAlCm9zzwGQ='; // Placeholder for power-up sound
-   }, []);
-
-   const generateAchievementSound = useCallback(() => {
-     // Generate a triumphant achievement fanfare sound
-     return 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmZDBzqR2+2cP0IKJ4DG8N+PQQoUWrDk5ahYGQlBm9vywGU='; // Placeholder for achievement sound
-   }, []);
-
-   // 🎵 EPIC AUDIO SYSTEM - PHASE D!
    const playSound = useCallback((soundType: 'flip' | 'game_over' | 'start' | 'power_up' | 'achievement') => {
+     // Get current settings from ref to avoid circular dependency
+     const currentSettings = currentSettingsRef.current;
+     if (!currentSettings?.audioEnabled || !audioContextRef.current) {
+       console.log(`[AUDIO] 🔇 Audio disabled or context not available for ${soundType}`);
+       return;
+     }
+
+     const soundId = Math.random().toString(36).substr(2, 6);
+     const soundStartTime = performance.now();
+     
+     console.log(`[AUDIO] 🎵 Starting sound playback: ${soundType} (ID: ${soundId})`);
+     
      try {
        console.log(`🎵 Playing ${soundType} sound effect!`);
        
+       let buffer: AudioBuffer | null = null;
+       
        switch (soundType) {
          case 'flip':
-           // Generate crisp flip sound: Quick, sharp beep
-           flipAudioPlayer.replace({
-             uri: generateFlipSound()
-           });
-           flipAudioPlayer.play();
+           buffer = createAudioBuffer([800, 1200], 0.08); // Crisp flip sound
            break;
          case 'game_over':
-           // Generate dramatic game over sound: Descending tones
-           gameOverAudioPlayer.replace({
-             uri: generateGameOverSound()
-           });
-           gameOverAudioPlayer.play();
+           buffer = createAudioBuffer([400, 300, 200], 0.3); // Descending game over
            break;
          case 'start':
-           // Generate uplifting start sound: Rising power-up
-           startAudioPlayer.replace({
-             uri: generateStartSound()
-           });
-           startAudioPlayer.play();
+           buffer = createAudioBuffer([600, 800, 1000], 0.2); // Rising start
            break;
          case 'power_up':
-           // Generate satisfying power-up sound: Chime
-           powerUpAudioPlayer.replace({
-             uri: generatePowerUpSound()
-           });
-           powerUpAudioPlayer.play();
+           buffer = createAudioBuffer([1000, 1200, 1400], 0.15); // Power-up chime
            break;
          case 'achievement':
-           // Generate triumphant achievement sound: Fanfare
-           achievementAudioPlayer.replace({
-             uri: generateAchievementSound()
-           });
-           achievementAudioPlayer.play();
+           buffer = createAudioBuffer([800, 1000, 1200, 1400], 0.4); // Achievement fanfare
            break;
        }
+       
+       if (buffer) {
+         const source = audioContextRef.current.createBufferSource();
+         const gainNode = audioContextRef.current.createGain();
+         
+         source.buffer = buffer;
+         source.connect(gainNode);
+         gainNode.connect(audioContextRef.current.destination);
+         
+         // Apply volume settings
+         const volume = currentSettings.masterVolume * currentSettings.soundEffectsVolume;
+         gainNode.gain.setValueAtTime(volume, audioContextRef.current.currentTime);
+         
+         source.start();
+         source.onended = () => {
+           const soundEndTime = performance.now();
+           console.log(`[AUDIO] ✅ Sound ${soundType} (${soundId}) completed in ${(soundEndTime - soundStartTime).toFixed(2)}ms`);
+         };
+       }
+       
      } catch (error) {
-       console.log(`🎵 Audio playback failed for ${soundType}:`, error);
+       const errorTime = performance.now();
+       console.error(`[AUDIO] ❌ Audio playback failed for ${soundType} (${soundId}) after ${(errorTime - soundStartTime).toFixed(2)}ms:`, error);
      }
-   }, [flipAudioPlayer, gameOverAudioPlayer, startAudioPlayer, powerUpAudioPlayer, achievementAudioPlayer]);
+   }, [createAudioBuffer]);
 
    // 📳 HAPTIC FEEDBACK FUNCTIONS
    const triggerHaptic = useCallback((type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error') => {
@@ -829,6 +849,19 @@ export default function App() {
     }
   }, []);
 
+  const loadLeaderboard = useCallback(async () => {
+    try {
+      const savedLeaderboard = await AsyncStorage.getItem('leaderboard');
+      if (savedLeaderboard) {
+        const parsedLeaderboard: LeaderboardEntry[] = JSON.parse(savedLeaderboard);
+        setLeaderboard(parsedLeaderboard);
+        console.log(`[LEADERBOARD] 📊 Loaded ${parsedLeaderboard.length} scores from storage`);
+      }
+    } catch (error) {
+      console.log('[LEADERBOARD] ❌ Error loading leaderboard:', error);
+    }
+  }, []);
+
   // 🌍 LANGUAGE PERSISTENCE FUNCTIONS
   const loadLanguage = useCallback(async () => {
     try {
@@ -851,27 +884,48 @@ export default function App() {
     }
   }, []);
 
-  // 🎮 CORE GAME MECHANICS
+  // 🎮 CORE GAME MECHANICS + SUPER DEBUG
   const flipPlayer = useCallback(() => {
-    if (playerState === PlayerState.TRANSITIONING) return;
+    const flipId = Math.random().toString(36).substr(2, 9);
+    const flipStartTime = performance.now();
+    
+    console.log(`🔄 [FLIP DEBUG] 🚀 Starting flip ${flipId}`);
+    console.log(`🔄 [FLIP DEBUG] 📊 Current state: ${playerState}`);
+    console.log(`🔄 [FLIP DEBUG] 📍 Current Y position: ${currentPlayerY.current}px`);
+    
+    if (playerState === PlayerState.TRANSITIONING) {
+      console.warn(`🔄 [FLIP DEBUG] ⚠️ Flip blocked - player already transitioning!`);
+      return;
+    }
 
     const isAtTop = playerState === PlayerState.TOP;
     const targetY = isAtTop ? SAFE_BOTTOM_POSITION : SAFE_TOP_POSITION;
     const newState = isAtTop ? PlayerState.BOTTOM : PlayerState.TOP;
+    
+    console.log(`🔄 [FLIP DEBUG] 🎯 Target: ${playerState} -> ${newState}`);
+    console.log(`🔄 [FLIP DEBUG] 📏 Y movement: ${currentPlayerY.current} -> ${targetY} (${Math.abs(targetY - currentPlayerY.current)}px)`);
+    console.log(`🔄 [FLIP DEBUG] ⏱️ Animation duration: ${TRANSITION_DURATION}ms`);
 
          setPlayerState(PlayerState.TRANSITIONING);
-     setTotalFlips(prev => prev + 1);
+     setTotalFlips(prev => {
+       console.log(`🔄 [FLIP DEBUG] 📊 Total flips: ${prev} -> ${prev + 1}`);
+       return prev + 1;
+     });
      
      // ✨ CREATE FLIP PARTICLE EFFECT
+     console.log(`🔄 [FLIP DEBUG] ✨ Creating particles at Y: ${currentPlayerY.current}`);
      createParticles(50, currentPlayerY.current, 'flip', 6);
      
+     console.log(`🔄 [FLIP DEBUG] 📳 Triggering haptic feedback`);
      triggerHaptic('light');
      playSound('flip');
      
      // 💫 SUBTLE FLIP CAMERA SHAKE!
+     console.log(`🔄 [FLIP DEBUG] 📳 Triggering screen shake`);
      triggerScreenShake('light');
      
      // 🌈 FLIP GLOW EFFECT!
+     console.log(`🔄 [FLIP DEBUG] 🌈 Updating player glow`);
      updatePlayerGlow('#00FF88', 1.3);
 
     // Haptic feedback
@@ -910,11 +964,27 @@ export default function App() {
         duration: TRANSITION_DURATION,
         useNativeDriver: false,
       }),
-         ]).start(() => {
+         ]).start((finished) => {
+       const flipEndTime = performance.now();
+       console.log(`🔄 [FLIP DEBUG] ✅ Flip ${flipId} animation finished=${finished} in ${(flipEndTime - flipStartTime).toFixed(2)}ms`);
+       console.log(`🔄 [FLIP DEBUG] 📍 Setting final position: ${targetY}px`);
+       console.log(`🔄 [FLIP DEBUG] 🎯 Setting final state: ${newState}`);
+       
        setPlayerState(newState);
        currentPlayerY.current = targetY;
        playerRotation.setValue(0); // Reset rotation
        playerY.removeListener(animationListener); // Clean up listener
+       
+       // Verify final position
+       const finalCheck = setTimeout(() => {
+         console.log(`🔄 [FLIP DEBUG] 🔍 Post-flip verification:`);
+         console.log(`🔄 [FLIP DEBUG] 📍 Expected Y: ${targetY}, Actual Y: ${currentPlayerY.current}`);
+         console.log(`🔄 [FLIP DEBUG] 🎯 Expected State: ${newState}, Actual State: ${playerState}`);
+         
+         if (Math.abs(currentPlayerY.current - targetY) > 5) {
+           console.error(`🔄 [FLIP DEBUG] ❌ POSITION MISMATCH! Off by ${Math.abs(currentPlayerY.current - targetY)}px`);
+         }
+       }, 50);
      });
   }, [playerState, playSound, playerY, playerScale, playerRotation]);
 
@@ -964,8 +1034,11 @@ export default function App() {
     }
   }, [gameState.currentMode]);
 
-  // 💥 COLLISION DETECTION - MARTIN'S CHALLENGE MODE! 🎯
+  // 💥 COLLISION DETECTION + SUPER DEBUG - MARTIN'S CHALLENGE MODE! 🎯
   const checkCollision = useCallback(() => {
+    const collisionId = Math.random().toString(36).substr(2, 6);
+    const checkStartTime = performance.now();
+    
     const playerBounds = {
       x: 50 - PLAYER_SIZE / 2,
       y: currentPlayerY.current - PLAYER_SIZE / 2,
@@ -973,23 +1046,53 @@ export default function App() {
       height: PLAYER_SIZE,
     };
 
-    console.log('[COLLISION] 🎯 Checking collisions - Player Y:', currentPlayerY.current, 'Obstacles:', obstacles.length);
+    console.log(`[COLLISION] 🎯 Starting collision check ${collisionId}`);
+    console.log(`[COLLISION] 👤 Player: pos(${50}, ${currentPlayerY.current}) bounds(${playerBounds.x}, ${playerBounds.y}, ${playerBounds.width}x${playerBounds.height}) state=${playerState}`);
+    console.log(`[COLLISION] 🚧 Checking ${obstacles.length} obstacles`);
 
-    for (const obstacle of obstacles) {
-      console.log('[COLLISION] 🚧 Obstacle at:', obstacle.x, obstacle.y, 'Player bounds:', playerBounds);
+    for (let i = 0; i < obstacles.length; i++) {
+      const obstacle = obstacles[i];
+      const obstacleDistance = Math.abs(obstacle.x - 50);
       
-      if (
-        playerBounds.x < obstacle.x + obstacle.width &&
-        playerBounds.x + playerBounds.width > obstacle.x &&
-        playerBounds.y < obstacle.y + obstacle.height &&
-        playerBounds.y + playerBounds.height > obstacle.y
-      ) {
-        console.log('[COLLISION] 💥 COLLISION DETECTED! Game Over!');
+      console.log(`[COLLISION] 🚧 Obstacle ${i}: pos(${obstacle.x}, ${obstacle.y}) size(${obstacle.width}x${obstacle.height}) distance=${obstacleDistance.toFixed(1)}px`);
+      
+      // Enhanced collision bounds checking with detailed logging
+      const leftOverlap = playerBounds.x < obstacle.x + obstacle.width;
+      const rightOverlap = playerBounds.x + playerBounds.width > obstacle.x;
+      const topOverlap = playerBounds.y < obstacle.y + obstacle.height;
+      const bottomOverlap = playerBounds.y + playerBounds.height > obstacle.y;
+      
+      console.log(`[COLLISION] 📐 Overlap check: left=${leftOverlap} right=${rightOverlap} top=${topOverlap} bottom=${bottomOverlap}`);
+      
+      if (leftOverlap && rightOverlap && topOverlap && bottomOverlap) {
+        const overlapX = Math.min(playerBounds.x + playerBounds.width, obstacle.x + obstacle.width) - Math.max(playerBounds.x, obstacle.x);
+        const overlapY = Math.min(playerBounds.y + playerBounds.height, obstacle.y + obstacle.height) - Math.max(playerBounds.y, obstacle.y);
+        
+        console.error(`[COLLISION] 💥 COLLISION DETECTED! ID=${collisionId}`);
+        console.error(`[COLLISION] 💥 Overlap area: ${overlapX.toFixed(1)}x${overlapY.toFixed(1)}px`);
+        console.error(`[COLLISION] 💥 Player state: ${playerState} at Y=${currentPlayerY.current}`);
+        console.error(`[COLLISION] 💥 Obstacle ${i}: x=${obstacle.x}, y=${obstacle.y}, w=${obstacle.width}, h=${obstacle.height}`);
+        
+        // Check if player is in a power-up state that should prevent collision
+        if (activePowerUps.ghostMode.active) {
+          console.warn(`[COLLISION] 👻 Ghost mode active - ignoring collision!`);
+          continue;
+        }
+        
+        if (activePowerUps.shield.active) {
+          console.warn(`[COLLISION] 🛡️ Shield active - blocking collision!`);
+          // This should be handled elsewhere, but log it
+          continue;
+        }
+        
         return true;
       }
     }
+    
+    const checkEndTime = performance.now();
+    console.log(`[COLLISION] ✅ No collisions detected in ${(checkEndTime - checkStartTime).toFixed(2)}ms`);
     return false;
-  }, [obstacles]);
+  }, [obstacles, playerState, activePowerUps]);
 
   // ⭐ POWER-UP COLLISION DETECTION - MARTIN'S COLLECTION EDITION! 💎
   const checkPowerUpCollision = useCallback(() => {
@@ -1188,15 +1291,16 @@ export default function App() {
 
      // 🚀 START GAME
    const startGame = useCallback(() => {
+         // 👤 For first-time players, prompt for name BEFORE starting the game
+     if (gamesPlayed === 0 && (!playerName || playerName === 'Anonymous Player')) {
+       console.log('[GAME] 👤 First game detected - prompting for player name before starting');
+       setShowNameInput(true);
+       setTempPlayerName('');
+       return; // Don't start the game yet - let the name input completion trigger the start
+     }
+    
     console.log('🎵 Playing start sound effect!');
     playSound('start');
-    
-    // 👤 Prompt for name if not set (first time players)
-    if (!playerName || playerName === 'Anonymous Player') {
-      setTimeout(() => {
-        promptPlayerName();
-      }, 2000); // Prompt after game starts and player gets into the flow
-    }
     
     setGameState(prev => ({
       ...prev,
@@ -1251,7 +1355,7 @@ export default function App() {
     
     // Trigger haptics
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [playSound, generateBackgroundStars, generateBackgroundPlanets]);
+  }, [playSound, generateBackgroundStars, generateBackgroundPlanets, gamesPlayed, playerName]);
 
   // ⭐ EPIC POWER-UP SPAWNING SYSTEM - 7 AMAZING ABILITIES!
   const spawnPowerUp = useCallback(() => {
@@ -1627,24 +1731,30 @@ export default function App() {
        };
 
        // Add to leaderboard and sort
+       let updatedLeaderboard: LeaderboardEntry[] = [];
        setLeaderboard(prev => {
          const updated = [...prev, newEntry].sort((a, b) => b.score - a.score);
          // Update ranks
-         return updated.map((entry, index) => ({ ...entry, rank: index + 1 }));
+         updatedLeaderboard = updated.map((entry, index) => ({ ...entry, rank: index + 1 }));
+         return updatedLeaderboard;
        });
 
        // Update player stats
-       setPlayerStats(prev => ({
-         ...prev,
-         totalGames: prev.totalGames + 1,
-         totalDistance: prev.totalDistance + finalDistance,
-         bossesDefeated: prev.bossesDefeated + finalBossesDefeated,
-         averageScore: Math.floor((prev.averageScore * prev.totalGames + finalScore) / (prev.totalGames + 1)),
-       }));
+       let updatedPlayerStats: any = {};
+       setPlayerStats(prev => {
+         updatedPlayerStats = {
+           ...prev,
+           totalGames: prev.totalGames + 1,
+           totalDistance: prev.totalDistance + finalDistance,
+           bossesDefeated: prev.bossesDefeated + finalBossesDefeated,
+           averageScore: Math.floor((prev.averageScore * prev.totalGames + finalScore) / (prev.totalGames + 1)),
+         };
+         return updatedPlayerStats;
+       });
 
        // Save to storage
-       await AsyncStorage.setItem('leaderboard', JSON.stringify(leaderboard));
-       await AsyncStorage.setItem('playerStats', JSON.stringify(playerStats));
+       await AsyncStorage.setItem('leaderboard', JSON.stringify(updatedLeaderboard));
+       await AsyncStorage.setItem('playerStats', JSON.stringify(updatedPlayerStats));
        
        console.log(`[LEADERBOARD] ✅ Score submitted successfully!`);
        
@@ -1706,11 +1816,28 @@ export default function App() {
      }
    }, [createParticles, playSound, getBossEmoji, getBossName]);
 
-  // 🎮 GAME LOOP
+  // 🎮 GAME LOOP + SUPER DEBUG PERFORMANCE MONITORING
   useEffect(() => {
     if (!gameState.isPlaying) return;
 
+    let frameCount = 0;
+    let lastFpsUpdate = Date.now();
+    let totalFrameTime = 0;
+    let maxFrameTime = 0;
+    let minFrameTime = Infinity;
+
     gameLoopRef.current = setInterval(() => {
+      const frameStartTime = performance.now();
+      const frameId = Math.random().toString(36).substr(2, 6);
+      
+      frameCount++;
+      console.log(`[GAME LOOP] 🎮 Frame ${frameCount} (ID: ${frameId}) started`);
+      console.log(`[GAME LOOP] 📊 Game state: speed=${gameState.speed.toFixed(1)}, distance=${gameState.distance.toFixed(1)}m, mode=${gameState.currentMode}`);
+      console.log(`[GAME LOOP] 👤 Player: Y=${currentPlayerY.current.toFixed(1)}, state=${playerState}`);
+      console.log(`[GAME LOOP] 🚧 Objects: ${obstacles.length} obstacles, ${powerUps.length} power-ups, ${bosses.length} bosses`);
+      console.log(`[GAME LOOP] ⚡ Active power-ups: ${Object.entries(activePowerUps).filter(([_, p]) => p.active).map(([name]) => name).join(', ') || 'none'}`);
+      
+      try {
       // Update distance and speed with MODE-SPECIFIC MECHANICS
       setGameState(prev => {
         let speedMultiplier = 1;
@@ -1922,6 +2049,53 @@ export default function App() {
 
       // Spawn bosses at intervals
       spawnBoss();
+      
+      } catch (error) {
+        console.error(`[GAME LOOP] ❌ Error in frame ${frameId}:`, error);
+        console.error(`[GAME LOOP] ❌ Game state at error:`, {
+          speed: gameState.speed,
+          distance: gameState.distance,
+          playerY: currentPlayerY.current,
+          playerState,
+          obstacleCount: obstacles.length,
+          powerUpCount: powerUps.length
+        });
+      }
+      
+      // Performance monitoring
+      const frameEndTime = performance.now();
+      const frameTime = frameEndTime - frameStartTime;
+      totalFrameTime += frameTime;
+      maxFrameTime = Math.max(maxFrameTime, frameTime);
+      minFrameTime = Math.min(minFrameTime, frameTime);
+      
+      console.log(`[GAME LOOP] ⏱️ Frame ${frameId} completed in ${frameTime.toFixed(2)}ms`);
+      
+      // Log performance stats every 60 frames (~1 second)
+      if (frameCount % 60 === 0) {
+        const now = Date.now();
+        const elapsed = now - lastFpsUpdate;
+        const avgFrameTime = totalFrameTime / 60;
+        const fps = 1000 / avgFrameTime;
+        
+        console.log(`[PERFORMANCE] 📊 60-frame performance report:`);
+        console.log(`[PERFORMANCE] 🎯 FPS: ${fps.toFixed(1)} (target: 62.5)`);
+        console.log(`[PERFORMANCE] ⏱️ Avg frame time: ${avgFrameTime.toFixed(2)}ms`);
+        console.log(`[PERFORMANCE] 📈 Max frame time: ${maxFrameTime.toFixed(2)}ms`);
+        console.log(`[PERFORMANCE] 📉 Min frame time: ${minFrameTime.toFixed(2)}ms`);
+        console.log(`[PERFORMANCE] 🚧 Objects in scene: ${obstacles.length + powerUps.length + bosses.length}`);
+        
+        if (avgFrameTime > 20) {
+          console.warn(`[PERFORMANCE] ⚠️ HIGH FRAME TIME! Average ${avgFrameTime.toFixed(2)}ms (target: <16ms)`);
+        }
+        
+        // Reset for next measurement period
+        totalFrameTime = 0;
+        maxFrameTime = 0;
+        minFrameTime = Infinity;
+        lastFpsUpdate = now;
+      }
+      
     }, 16); // ~60fps
 
     return () => {
@@ -1972,7 +2146,8 @@ export default function App() {
   useEffect(() => {
     loadHighScore();
     loadLanguage();
-  }, [loadHighScore, loadLanguage]);
+    loadLeaderboard();
+  }, [loadHighScore, loadLanguage, loadLeaderboard]);
 
   // ⚙️ LOAD SETTINGS ON MOUNT
   useEffect(() => {
@@ -1982,16 +2157,20 @@ export default function App() {
         if (savedSettings) {
           const parsedSettings = JSON.parse(savedSettings) as GameSettings;
           setSettings(parsedSettings);
+          currentSettingsRef.current = parsedSettings; // Update ref
           setAudioEnabled(parsedSettings.audioEnabled);
           setCurrentLanguage(parsedSettings.language);
           console.log('⚙️ Settings loaded successfully!');
         }
+        
+        // 🎵 Initialize audio system after settings are loaded
+        initializeAudio();
       } catch (error) {
         console.error('❌ Failed to load settings:', error);
       }
     };
     initializeSettings();
-  }, []);
+  }, [initializeAudio]);
 
   // 🎓 LOAD TUTORIAL PROGRESS ON MOUNT
   useEffect(() => {
@@ -2030,8 +2209,13 @@ export default function App() {
     initializePlayerName();
   }, []);
 
-  // 🎮 TOUCH HANDLER WITH TUTORIAL INTEGRATION
+  // 🎮 TOUCH HANDLER WITH TUTORIAL INTEGRATION + SUPER DEBUG
   const handleTouch = useCallback(() => {
+    const touchTime = Date.now();
+    console.log(`🎮 [TOUCH DEBUG] Touch detected at ${touchTime}ms`);
+    console.log(`🎮 [TOUCH DEBUG] Game state: playing=${gameState.isPlaying}, gameOver=${gameState.isGameOver}`);
+    console.log(`🎮 [TOUCH DEBUG] Player position: ${currentPlayerY.current}px`);
+    
     // 🎓 Tutorial tracking
     setTutorialStats(prev => ({
       ...prev,
@@ -2040,13 +2224,19 @@ export default function App() {
     }));
 
     if (gameState.isPlaying) {
+      console.log(`🎮 [TOUCH DEBUG] Calling flipPlayer() - current state: ${playerState}`);
+      const flipStartTime = performance.now();
       flipPlayer();
+      const flipEndTime = performance.now();
+      console.log(`🎮 [TOUCH DEBUG] flipPlayer() took ${(flipEndTime - flipStartTime).toFixed(2)}ms`);
     } else if (gameState.isGameOver) {
+      console.log(`🎮 [TOUCH DEBUG] Resetting from game over`);
       setGameState(prev => ({ ...prev, isGameOver: false }));
     } else {
+      console.log(`🎮 [TOUCH DEBUG] Starting new game`);
       startGame();
     }
-  }, [gameState.isPlaying, gameState.isGameOver, flipPlayer, startGame]);
+  }, [gameState.isPlaying, gameState.isGameOver, flipPlayer, startGame, playerState]);
 
   // 🌟 PARALLAX BACKGROUND STATE - EPIC VISUAL EFFECTS!
   interface BackgroundStar {
@@ -2245,6 +2435,7 @@ export default function App() {
     try {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
       setSettings(newSettings);
+      currentSettingsRef.current = newSettings; // Update ref
       console.log('⚙️ Settings saved successfully!');
     } catch (error) {
       console.error('❌ Failed to save settings:', error);
@@ -2272,6 +2463,7 @@ export default function App() {
   ) => {
     const newSettings = { ...settings, [key]: value };
     saveSettings(newSettings);
+    currentSettingsRef.current = newSettings; // Update ref
     
     // Apply immediate effects for certain settings
     if (key === 'audioEnabled') {
@@ -2300,6 +2492,7 @@ export default function App() {
       theme: 'dark',
     };
     saveSettings(defaultSettings);
+    currentSettingsRef.current = defaultSettings; // Update ref
   }, [saveSettings]);
 
   // 🎓 EPIC TUTORIAL STEPS DEFINITION - PROGRESSIVE LEARNING!
@@ -2521,6 +2714,93 @@ export default function App() {
     });
   }, [gameState.distance, tutorialStats, showGameTip, tutorialState.isActive]);
 
+  // 🔍 SUPER DEBUG: Comprehensive game state dump
+  const logGameStateDump = useCallback(() => {
+    const timestamp = new Date().toISOString();
+    console.log(`\n[DEBUG DUMP] 📊 COMPREHENSIVE GAME STATE @ ${timestamp}`);
+    console.log(`[DEBUG DUMP] ===========================================`);
+    
+    // Game State
+    console.log(`[DEBUG DUMP] 🎮 GAME STATE:`);
+    console.log(`[DEBUG DUMP]   Playing: ${gameState.isPlaying}`);
+    console.log(`[DEBUG DUMP]   Game Over: ${gameState.isGameOver}`);
+    console.log(`[DEBUG DUMP]   Distance: ${gameState.distance.toFixed(1)}m`);
+    console.log(`[DEBUG DUMP]   Speed: ${gameState.speed.toFixed(1)}`);
+    console.log(`[DEBUG DUMP]   Mode: ${gameState.currentMode}`);
+    console.log(`[DEBUG DUMP]   High Score: ${gameState.highScore}`);
+    
+    // Player State
+    console.log(`[DEBUG DUMP] 👤 PLAYER STATE:`);
+    console.log(`[DEBUG DUMP]   State: ${playerState}`);
+    console.log(`[DEBUG DUMP]   Y Position: ${currentPlayerY.current.toFixed(1)}px`);
+    console.log(`[DEBUG DUMP]   Total Flips: ${totalFlips}`);
+    
+    // Objects in Scene
+    console.log(`[DEBUG DUMP] 🚧 SCENE OBJECTS:`);
+    console.log(`[DEBUG DUMP]   Obstacles: ${obstacles.length}`);
+    console.log(`[DEBUG DUMP]   Power-ups: ${powerUps.length}`);
+    console.log(`[DEBUG DUMP]   Bosses: ${bosses.length}`);
+    console.log(`[DEBUG DUMP]   Particles: ${particles.length}`);
+    
+    // Active Power-ups
+    const activePowerUpsList = Object.entries(activePowerUps)
+      .filter(([_, powerUp]) => powerUp.active)
+      .map(([name, powerUp]) => `${name}(${((powerUp.endTime - Date.now()) / 1000).toFixed(1)}s)`);
+    console.log(`[DEBUG DUMP] ⚡ ACTIVE POWER-UPS: ${activePowerUpsList.join(', ') || 'none'}`);
+    
+    // Settings
+    console.log(`[DEBUG DUMP] ⚙️ SETTINGS:`);
+    console.log(`[DEBUG DUMP]   Audio Enabled: ${audioEnabled}`);
+    console.log(`[DEBUG DUMP]   Master Volume: ${settings.masterVolume}`);
+    console.log(`[DEBUG DUMP]   Sound Effects: ${settings.soundEffectsVolume}`);
+    console.log(`[DEBUG DUMP]   Screen Shake: ${settings.screenShake}`);
+    console.log(`[DEBUG DUMP]   Haptic Feedback: ${settings.hapticFeedback}`);
+    
+    // Tutorial
+    console.log(`[DEBUG DUMP] 🎓 TUTORIAL:`);
+    console.log(`[DEBUG DUMP]   Completed: ${tutorialCompleted}`);
+    console.log(`[DEBUG DUMP]   Active: ${tutorialState.isActive}`);
+    console.log(`[DEBUG DUMP]   Current Step: ${tutorialState.currentStep}/${tutorialState.totalSteps}`);
+    
+    // Player Profile
+    console.log(`[DEBUG DUMP] 👤 PROFILE:`);
+    console.log(`[DEBUG DUMP]   Player Name: "${playerName}"`);
+    console.log(`[DEBUG DUMP]   Games Played: ${gamesPlayed}`);
+    
+    console.log(`[DEBUG DUMP] ===========================================\n`);
+  }, [
+    gameState, playerState, totalFlips, obstacles.length, powerUps.length, 
+    bosses.length, particles.length, activePowerUps, audioEnabled, settings,
+    tutorialCompleted, tutorialState, playerName, gamesPlayed
+  ]);
+
+  // 🔍 SUPER DEBUG: Performance and error monitoring
+  useEffect(() => {
+    // Log initial state
+    console.log(`[SUPER DEBUG] 🚀 Super Tester Mode ACTIVATED!`);
+    logGameStateDump();
+    
+    // Set up periodic health checks
+    const healthCheckInterval = setInterval(() => {
+      if (gameState.isPlaying) {
+        console.log(`[HEALTH CHECK] 💗 Game health check - Frame: ${Date.now()}`);
+        
+        // Check for potential issues
+        if (obstacles.length > 50) {
+          console.warn(`[HEALTH CHECK] ⚠️ High obstacle count: ${obstacles.length}`);
+        }
+        if (particles.length > 100) {
+          console.warn(`[HEALTH CHECK] ⚠️ High particle count: ${particles.length}`);
+        }
+        if (gameState.speed > 20) {
+          console.warn(`[HEALTH CHECK] ⚠️ Very high speed: ${gameState.speed}`);
+        }
+      }
+    }, 5000); // Every 5 seconds
+    
+    return () => clearInterval(healthCheckInterval);
+  }, [gameState.isPlaying, obstacles.length, particles.length, gameState.speed, logGameStateDump]);
+
   // 👤 PLAYER NAME MANAGEMENT FUNCTIONS
   const loadPlayerName = useCallback(async () => {
     try {
@@ -2555,11 +2835,85 @@ export default function App() {
     if (name.trim().length > 0) {
       savePlayerName(name.trim());
       setShowNameInput(false);
+      
+      // 🎮 If this is first game and game isn't playing, start the game automatically
+      if (gamesPlayed === 0 && !gameState.isPlaying) {
+        console.log('[GAME] 👤 Name submitted for first game - auto-starting game');
+        setTimeout(() => {
+          // Call startGame directly to bypass the name check
+          console.log('🎵 Playing start sound effect!');
+          playSound('start');
+          
+          setGameState(prev => ({
+            ...prev,
+            isPlaying: true,
+            isGameOver: false,
+            distance: 0,
+            speed: BASE_SPEED,
+            skill: 0,
+            flow: 0,
+          }));
+          
+          // Reset player position
+          playerY.setValue(SAFE_BOTTOM_POSITION);
+          currentPlayerY.current = SAFE_BOTTOM_POSITION;
+          setPlayerState(PlayerState.BOTTOM);
+          
+          // Reset game objects
+          setObstacles([]);
+          setPowerUps([]);
+          setParticles([]);
+          setBosses([]);
+          setBossWarningActive(false);
+          setLastBossSpawn(0);
+
+          // ⚡ RESET ALL POWER-UP EFFECTS!
+          setActivePowerUps({
+            timeFreeze: { active: false, endTime: 0 },
+            doubleScore: { active: false, endTime: 0 },
+            magnet: { active: false, endTime: 0 },
+            ghostMode: { active: false, endTime: 0 },
+            shield: { active: false, endTime: 0 },
+          });
+
+          // 🎓 RESET TUTORIAL STATS FOR NEW GAME
+          setTutorialStats({
+            tapsCount: 0,
+            flipsCount: 0,
+            powerUpsCollected: 0,
+            maxDistance: 0,
+            survivedTime: 0,
+          });
+
+          // 🌟 INITIALIZE EPIC PARALLAX BACKGROUND!
+          generateBackgroundStars();
+          generateBackgroundPlanets();
+          
+          // 🌈 START GAMEPLAY GLOW PULSE!
+          pulsePlayerGlow();
+          
+          // 🔥 START EPIC PLAYER TRAIL!
+          startPlayerTrail();
+          
+          // Trigger haptics
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }, 500); // Small delay for smooth transition
+      }
     }
-  }, [savePlayerName]);
+  }, [savePlayerName, gamesPlayed, gameState.isPlaying, playSound, generateBackgroundStars, generateBackgroundPlanets]);
 
   return (
-    <TouchableWithoutFeedback onPress={handleTouch}>
+    <TouchableWithoutFeedback 
+      onPress={handleTouch}
+      onPressIn={() => {
+        const touchStartTime = performance.now();
+        console.log(`[INPUT] 👆 Touch DOWN at ${touchStartTime}ms - Game playing: ${gameState.isPlaying}`);
+      }}
+      onPressOut={() => {
+        const touchEndTime = performance.now();
+        console.log(`[INPUT] 👆 Touch UP at ${touchEndTime}ms`);
+      }}
+    >
       <View style={styles.container}>
         <StatusBar style="light" />
         
@@ -3009,6 +3363,20 @@ export default function App() {
                    </Text>
                  </TouchableOpacity>
 
+                 {/* 🏆 Leaderboard Card - COMPETE WITH OTHERS! */}
+                 <TouchableOpacity 
+                   style={[styles.menuCard, styles.leaderboardCard]}
+                   onPress={() => setShowLeaderboard(true)}
+                   activeOpacity={0.8}
+                 >
+                   <Text style={styles.cardEmoji}>🏆</Text>
+                   <View style={styles.cardBadge}>
+                     <Text style={styles.cardBadgeText}>TOP</Text>
+                   </View>
+                   <Text style={styles.cardTitle}>Leaderboard</Text>
+                   <Text style={styles.cardDescription}>View top scores</Text>
+                 </TouchableOpacity>
+
                  {/* Share Card */}
                  <TouchableOpacity 
                    style={[styles.menuCard, styles.shareCard]}
@@ -3132,12 +3500,15 @@ export default function App() {
                     </TouchableOpacity>
                     
                     <TouchableOpacity 
-                      style={[styles.gameOverButtonSmall, audioEnabled ? styles.audioEnabled : styles.audioDisabled]}
-                      onPress={() => setAudioEnabled(!audioEnabled)}
+                      style={styles.gameOverButtonSmall}
+                      onPress={() => {
+                        setGameState(prev => ({ ...prev, isGameOver: false }));
+                        setShowLeaderboard(true);
+                      }}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.gameOverButtonIcon}>{audioEnabled ? '🔊' : '🔇'}</Text>
-                      <Text style={styles.gameOverButtonText}>Audio</Text>
+                      <Text style={styles.gameOverButtonIcon}>🏆</Text>
+                      <Text style={styles.gameOverButtonText}>Leaderboard</Text>
                     </TouchableOpacity>
                   </View>
                                  </View>
@@ -3416,6 +3787,103 @@ export default function App() {
             <Text style={styles.gameTipText}>{tip.message}</Text>
           </View>
         ))}
+
+        {/* 🔍 SUPER DEBUG CONTROLS */}
+        <View style={styles.debugControls}>
+          <TouchableOpacity 
+            style={styles.debugButton}
+            onPress={() => {
+              console.log(`[MANUAL DEBUG] 🧪 Manual debug dump triggered by user`);
+              logGameStateDump();
+            }}
+          >
+            <Text style={styles.debugButtonText}>🔍 DEBUG DUMP</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.debugButton}
+            onPress={() => {
+              console.log(`[MANUAL DEBUG] 🎯 Manual collision test at player position Y=${currentPlayerY.current}`);
+              const collision = checkCollision();
+              console.log(`[MANUAL DEBUG] 🎯 Collision result: ${collision}`);
+            }}
+          >
+            <Text style={styles.debugButtonText}>🎯 TEST COLLISION</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 🏆 LEADERBOARD MODAL */}
+        <Modal visible={showLeaderboard} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.achievementHeader}>
+                <Text style={styles.modalTitle}>🏆 Leaderboard</Text>
+                <TouchableOpacity onPress={() => setShowLeaderboard(false)}>
+                  <Text style={styles.closeButton}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.leaderboardStats}>
+                <View style={styles.achievementStatItem}>
+                  <Text style={styles.achievementStatNumber}>{leaderboard.length}</Text>
+                  <Text style={styles.achievementStatLabel}>Players</Text>
+                </View>
+                <View style={styles.achievementStatItem}>
+                  <Text style={styles.achievementStatNumber}>
+                    {leaderboard.length > 0 ? Math.max(...leaderboard.map(entry => entry.distance)).toFixed(0) : 0}m
+                  </Text>
+                  <Text style={styles.achievementStatLabel}>Best Distance</Text>
+                </View>
+                <View style={styles.achievementStatItem}>
+                  <Text style={styles.achievementStatNumber}>
+                    {leaderboard.findIndex(e => e.playerName === playerName) + 1 || '-'}
+                  </Text>
+                  <Text style={styles.achievementStatLabel}>Your Rank</Text>
+                </View>
+              </View>
+
+              <ScrollView style={styles.achievementList}>
+                <Text style={styles.achievementCategory}>TOP SCORES</Text>
+                
+                {leaderboard.length === 0 ? (
+                  <View style={styles.leaderboardEmpty}>
+                    <Text style={styles.leaderboardEmptyIcon}>🎮</Text>
+                    <Text style={styles.leaderboardEmptyTitle}>No scores yet!</Text>
+                    <Text style={styles.leaderboardEmptyDesc}>Play a game to be the first on the leaderboard!</Text>
+                  </View>
+                ) : (
+                  leaderboard
+                    .sort((a, b) => b.score - a.score) // Sort by score descending
+                    .slice(0, 10) // Top 10
+                    .map((entry, index) => (
+                      <View 
+                        key={entry.id} 
+                        style={[
+                          styles.leaderboardEntry, 
+                          entry.playerName === playerName && styles.leaderboardCurrentPlayer
+                        ]}
+                      >
+                        <View style={styles.leaderboardRank}>
+                          <Text style={styles.leaderboardRankText}>
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                          </Text>
+                        </View>
+                        <View style={styles.leaderboardInfo}>
+                          <Text style={styles.leaderboardPlayerName}>
+                            {entry.playerName} {entry.playerName === playerName && '(You)'}
+                          </Text>
+                          <Text style={styles.leaderboardScore}>{entry.distance.toFixed(0)}m</Text>
+                          <Text style={styles.leaderboardDetails}>
+                            {entry.gameMode} • {entry.bossesDefeated} bosses • {new Date(entry.timestamp).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         {/* 👤 PLAYER NAME INPUT MODAL */}
         <Modal
@@ -4190,6 +4658,12 @@ const styles = StyleSheet.create({
     borderColor: '#F59E0B',
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
     shadowColor: '#F59E0B',
+    shadowOpacity: 0.4,
+  },
+  leaderboardCard: {
+    borderColor: '#FFD700',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    shadowColor: '#FFD700',
     shadowOpacity: 0.4,
   },
   languageCard: {
@@ -5156,5 +5630,104 @@ const styles = StyleSheet.create({
      fontWeight: '600',
      textAlign: 'center',
      marginVertical: 5,
+   },
+   
+   // 🔍 DEBUG CONTROL STYLES
+   debugControls: {
+     position: 'absolute',
+     bottom: 50,
+     right: 20,
+     zIndex: 9999,
+     flexDirection: 'column',
+     gap: 10,
+   },
+   debugButton: {
+     backgroundColor: 'rgba(255, 0, 0, 0.8)',
+     borderRadius: 8,
+     padding: 8,
+     minWidth: 120,
+     alignItems: 'center',
+     borderWidth: 1,
+     borderColor: '#FF0000',
+   },
+   debugButtonText: {
+     color: '#FFFFFF',
+     fontSize: 12,
+     fontWeight: 'bold',
+   },
+
+   // 🏆 LEADERBOARD STYLES
+   leaderboardStats: {
+     flexDirection: 'row',
+     justifyContent: 'space-around',
+     marginBottom: 20,
+     paddingVertical: 15,
+     backgroundColor: 'rgba(255, 215, 0, 0.1)',
+     borderRadius: 12,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 215, 0, 0.3)',
+   },
+   leaderboardEmpty: {
+     alignItems: 'center',
+     paddingVertical: 40,
+     opacity: 0.6,
+   },
+   leaderboardEmptyIcon: {
+     fontSize: 48,
+     marginBottom: 10,
+   },
+   leaderboardEmptyTitle: {
+     fontSize: 18,
+     fontWeight: 'bold',
+     color: '#FFFFFF',
+     marginBottom: 5,
+   },
+   leaderboardEmptyDesc: {
+     fontSize: 14,
+     color: '#AAAAAA',
+     textAlign: 'center',
+   },
+   leaderboardEntry: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     padding: 15,
+     marginVertical: 5,
+     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+     borderRadius: 12,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.1)',
+   },
+   leaderboardCurrentPlayer: {
+     backgroundColor: 'rgba(255, 215, 0, 0.15)',
+     borderColor: 'rgba(255, 215, 0, 0.4)',
+   },
+   leaderboardRank: {
+     width: 50,
+     alignItems: 'center',
+   },
+   leaderboardRankText: {
+     fontSize: 18,
+     fontWeight: 'bold',
+     color: '#FFD700',
+   },
+   leaderboardInfo: {
+     flex: 1,
+     marginLeft: 15,
+   },
+   leaderboardPlayerName: {
+     fontSize: 16,
+     fontWeight: 'bold',
+     color: '#FFFFFF',
+     marginBottom: 2,
+   },
+   leaderboardScore: {
+     fontSize: 18,
+     fontWeight: 'bold',
+     color: '#FFD700',
+     marginBottom: 2,
+   },
+   leaderboardDetails: {
+     fontSize: 12,
+     color: '#AAAAAA',
    },
  });
