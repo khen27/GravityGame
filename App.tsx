@@ -4,6 +4,7 @@ import {
   Text,
   View,
   Animated,
+  Easing,
   TouchableWithoutFeedback,
   TouchableOpacity,
   Dimensions,
@@ -20,10 +21,10 @@ import * as Haptics from 'expo-haptics';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // 🎮 GAME CONSTANTS - MARTIN'S FEEDBACK EDITION! 🚀
-const PLAYER_SIZE = 40;
-const OBSTACLE_WIDTH = 30;
-const OBSTACLE_HEIGHT = 100;
-const BASE_SPEED = 5; // 🚀 MUCH FASTER for Martin!
+const PLAYER_SIZE = 32; // Smaller player like reference game
+const OBSTACLE_WIDTH = 24; // Thinner obstacles like reference
+const OBSTACLE_HEIGHT = 120; // Taller obstacles like reference
+const BASE_SPEED = 7; // 🚀 SUPER SPEED MODE!
 const POWERUP_SIZE = 25;
 const TRANSITION_DURATION = 200;
 
@@ -47,6 +48,19 @@ enum GameMode {
   POWER_UP_RUSH = 'power_up_rush',
   HARDCORE = 'hardcore',
   ZEN = 'zen',
+}
+
+// 🪙 MARIO-STYLE COIN INTERFACES - ENHANCED!
+interface MarioCoin {
+  id: string;
+  x: number;
+  y: number;
+  type: 'normal' | 'rainbow' | 'gem' | 'powerup' | 'multiplier';
+  patternId?: string;
+  sparkle: Animated.Value;
+  bounce: Animated.Value;
+  value?: number; // Custom point value
+  multiplier?: number; // For multiplier coins
 }
 
 // 🌍 MULTI-LANGUAGE SYSTEM
@@ -1042,11 +1056,531 @@ export default function App() {
   const [playerName, setPlayerName] = useState('Anonymous Player');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
    
-   // 🏆 ACHIEVEMENT TRACKING
-   const [totalFlips, setTotalFlips] = useState(0);
-   const [gamesPlayed, setGamesPlayed] = useState(0);
+     // 🏆 ACHIEVEMENT TRACKING
+  const [totalFlips, setTotalFlips] = useState(0);
+  const [gamesPlayed, setGamesPlayed] = useState(0);
 
-   // ✨ PARTICLE SYSTEM STATE
+    // 🌟 SIMPLIFIED XP & LEVEL SYSTEM
+  const [xp, setXp] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [sessionXp, setSessionXp] = useState(0); // XP gained this session
+  const xpGainAnim = useRef(new Animated.Value(1)).current;
+  
+  // XP thresholds for each level
+  const XP_THRESHOLDS = [0, 100, 250, 500, 1000, 2000, 4000, 8000, 15000, 30000, 50000];
+
+  // 🪙 MARIO-STYLE COIN SYSTEM
+  const [marioCoins, setMarioCoins] = useState<MarioCoin[]>([]);
+  const [coinCount, setCoinCount] = useState(0);
+  const [coinCombo, setCoinCombo] = useState(0);
+  const [lastCoinTime, setLastCoinTime] = useState(0);
+  const [activeStreaks, setActiveStreaks] = useState<string[]>([]);
+  const coinCountAnim = useRef(new Animated.Value(1)).current;
+  const comboPopupAnim = useRef(new Animated.Value(0)).current;
+  const [comboPopupVisible, setComboPopupVisible] = useState(false);
+  
+  // 🎨 MARIO-STYLE COIN PATTERNS - CREATIVE & AMAZING!
+  const COIN_PATTERNS = {
+    line: (startX: number, startY: number) => 
+      Array.from({ length: 3 }, (_, i) => ({ x: startX + i * 50, y: startY })),
+    arc: (startX: number, startY: number) => [
+      { x: startX, y: startY + 30 },
+      { x: startX + 60, y: startY },
+      { x: startX + 120, y: startY + 30 }
+    ],
+    zigzag: (startX: number, startY: number) => [
+      { x: startX, y: startY },
+      { x: startX + 60, y: startY + 40 },
+      { x: startX + 120, y: startY }
+    ],
+    ring: (startX: number, startY: number) => [
+      { x: startX + 40, y: startY - 20 },
+      { x: startX + 60, y: startY },
+      { x: startX + 40, y: startY + 20 },
+      { x: startX + 20, y: startY },
+      { x: startX + 40, y: startY } // Rainbow coin in center
+    ],
+    // 💖 NEW: HEART PATTERN - Perfect for special occasions!
+    heart: (startX: number, startY: number) => {
+      const coins = [];
+      const scale = 20;
+      for (let i = 0; i < 10; i++) {
+        const t = (i / 10) * 2 * Math.PI;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+        coins.push({
+          x: startX + (x * scale) / 16,
+          y: startY - (y * scale) / 16
+        });
+      }
+      return coins;
+    },
+    // 🌊 NEW: WAVE PATTERN - Flows like water!
+    wave: (startX: number, startY: number) => 
+      Array.from({ length: 8 }, (_, i) => ({
+        x: startX + i * 35,
+        y: startY + Math.sin((i / 8) * 4 * Math.PI) * 35
+      })),
+    // 🌀 NEW: SPIRAL PATTERN - Mesmerizing!
+    spiral: (startX: number, startY: number) => {
+      const coins = [];
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * 3 * Math.PI;
+        const radius = 15 + i * 4;
+        coins.push({
+          x: startX + Math.cos(angle) * radius,
+          y: startY + Math.sin(angle) * radius
+        });
+      }
+      return coins;
+    },
+    // ⭐ NEW: STAR PATTERN - Shine bright!
+    star: (startX: number, startY: number) => [
+      { x: startX, y: startY - 40 }, // Top point
+      { x: startX - 30, y: startY - 10 }, // Upper left
+      { x: startX - 40, y: startY + 20 }, // Lower left
+      { x: startX, y: startY }, // Center
+      { x: startX + 40, y: startY + 20 }, // Lower right
+      { x: startX + 30, y: startY - 10 }, // Upper right
+    ],
+    // 🎯 NEW: DIAMOND FORMATION - Classic and elegant!
+    diamond: (startX: number, startY: number) => [
+      { x: startX, y: startY - 40 }, // Top
+      { x: startX - 30, y: startY }, // Left
+      { x: startX, y: startY }, // Center (rainbow coin!)
+      { x: startX + 30, y: startY }, // Right
+      { x: startX, y: startY + 40 } // Bottom
+    ],
+    // 🏃 NEW: MARIO JUMP - Classic platformer pattern!
+    jump: (startX: number, startY: number) => [
+      { x: startX, y: startY + 40 },
+      { x: startX + 25, y: startY + 20 },
+      { x: startX + 50, y: startY },
+      { x: startX + 75, y: startY - 20 },
+      { x: startX + 100, y: startY - 30 },
+      { x: startX + 125, y: startY - 20 },
+      { x: startX + 150, y: startY },
+      { x: startX + 175, y: startY + 20 }
+    ]
+  };
+
+  // 🌟 XP FUNCTIONS
+  const gainXp = (amount: number, reason: string = 'gameplay') => {
+    const newSessionXp = sessionXp + amount;
+    const newTotalXp = xp + amount;
+    
+    setSessionXp(newSessionXp);
+    setXp(newTotalXp);
+    
+    // Animate XP gain
+    Animated.sequence([
+      Animated.timing(xpGainAnim, { toValue: 1.2, duration: 150, useNativeDriver: true }),
+      Animated.timing(xpGainAnim, { toValue: 1, duration: 150, useNativeDriver: true })
+    ]).start();
+    
+    console.log(`✨ [XP] +${amount} XP for ${reason} (Total: ${newTotalXp})`);
+    
+    // Check for level up
+    checkLevelUp(newTotalXp);
+  };
+
+  const checkLevelUp = (currentXp: number) => {
+    const newLevel = XP_THRESHOLDS.findIndex(threshold => currentXp < threshold) - 1;
+    const calculatedLevel = newLevel === -2 ? XP_THRESHOLDS.length - 1 : Math.max(1, newLevel);
+    
+    if (calculatedLevel > level) {
+      setLevel(calculatedLevel);
+      console.log(`🎉 [LEVEL UP] Reached Level ${calculatedLevel}!`);
+      
+      // Celebration effects
+      triggerHaptic('success');
+      createParticles(SCREEN_WIDTH / 2, 100, 'special', 20);
+    }
+  };
+
+  // 🪙 MARIO-STYLE COIN FUNCTIONS
+  const spawnCoinPattern = useCallback((patternType: keyof typeof COIN_PATTERNS, baseX: number, baseY: number) => {
+    const patternId = `pattern_${Date.now()}_${Math.random()}`;
+    const positions = COIN_PATTERNS[patternType](baseX, baseY);
+    
+    const newCoins: MarioCoin[] = positions.map((pos, index) => {
+      // 🌈 SPECIAL COIN LOGIC - More variety and excitement!
+      let coinType: MarioCoin['type'] = 'normal';
+      let coinValue = 10;
+      let coinMultiplier = 1;
+      
+      // Center coins in certain patterns become special
+      const isCenterCoin = (patternType === 'ring' && index === 4) || 
+                          (patternType === 'diamond' && index === 2) ||
+                          (patternType === 'star' && index === 3);
+                          
+      if (isCenterCoin) {
+        coinType = 'rainbow';
+        coinValue = 50;
+      } else if (Math.random() < 0.15) { // 15% chance for special coins
+        const specialTypes = ['gem', 'powerup', 'multiplier'];
+        coinType = specialTypes[Math.floor(Math.random() * specialTypes.length)] as MarioCoin['type'];
+        
+        switch (coinType) {
+          case 'gem':
+            coinValue = 25;
+            break;
+          case 'powerup':
+            coinValue = 30;
+            break;
+          case 'multiplier':
+            coinValue = 15;
+            coinMultiplier = 2;
+            break;
+        }
+      }
+      
+      return {
+        id: `coin_${patternId}_${index}`,
+        x: pos.x,
+        y: pos.y,
+        type: coinType,
+        patternId,
+        sparkle: new Animated.Value(0),
+        bounce: new Animated.Value(0),
+        value: coinValue,
+        multiplier: coinMultiplier,
+      };
+    });
+
+    // ✨ MAGICAL COIN ENTRANCE ANIMATIONS!
+    newCoins.forEach((coin, index) => {
+      // Set initial values for dramatic entrance
+      coin.sparkle.setValue(0);
+      coin.bounce.setValue(-30);
+      
+      setTimeout(() => {
+        // 🎭 PHASE 1: DRAMATIC ENTRANCE with bounce-back effect
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(coin.sparkle, {
+              toValue: 1.4,
+              duration: 250,
+              easing: Easing.out(Easing.back(2.5)),
+              useNativeDriver: true,
+            }),
+            Animated.timing(coin.bounce, {
+              toValue: 8,
+              duration: 250,
+              easing: Easing.out(Easing.back(1.8)),
+              useNativeDriver: true,
+            })
+          ]),
+          // 🎭 PHASE 2: SETTLE INTO FLOATING
+          Animated.parallel([
+            Animated.timing(coin.sparkle, {
+              toValue: 1,
+              duration: 200,
+              easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+              useNativeDriver: true,
+            }),
+            Animated.timing(coin.bounce, {
+              toValue: 0,
+              duration: 200,
+              easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+              useNativeDriver: true,
+            })
+          ])
+        ]).start(() => {
+          // 🌟 PHASE 3: CONTINUOUS FLOATING for special coins
+          if (coin.type !== 'normal') {
+            const floatRange = coin.type === 'rainbow' ? 8 : coin.type === 'gem' ? 6 : 4;
+            const floatSpeed = coin.type === 'rainbow' ? 1800 : coin.type === 'multiplier' ? 1200 : 1500;
+            
+            Animated.loop(
+              Animated.sequence([
+                Animated.timing(coin.bounce, {
+                  toValue: -floatRange,
+                  duration: floatSpeed,
+                  easing: Easing.inOut(Easing.sin),
+                  useNativeDriver: true,
+                }),
+                Animated.timing(coin.bounce, {
+                  toValue: floatRange,
+                  duration: floatSpeed,
+                  easing: Easing.inOut(Easing.sin),
+                  useNativeDriver: true,
+                }),
+              ])
+            ).start();
+          } else {
+            // Normal coins get subtle bob
+            Animated.loop(
+              Animated.sequence([
+                Animated.timing(coin.bounce, {
+                  toValue: -2,
+                  duration: 2000,
+                  easing: Easing.inOut(Easing.sin),
+                  useNativeDriver: true,
+                }),
+                Animated.timing(coin.bounce, {
+                  toValue: 2,
+                  duration: 2000,
+                  easing: Easing.inOut(Easing.sin),
+                  useNativeDriver: true,
+                }),
+              ])
+            ).start();
+          }
+        });
+      }, index * 120); // Stagger entrance timing
+    });
+
+    setMarioCoins(prev => [...prev, ...newCoins]);
+    console.log(`🪙 [COINS] Spawned ${patternType} pattern with ${newCoins.length} coins at X=${baseX}, Y=${baseY}`);
+  }, []);
+
+  const collectMarioCoin = useCallback((coinId: string) => {
+    const coin = marioCoins.find(c => c.id === coinId);
+    if (!coin) return;
+
+    const now = Date.now();
+    const timeSinceLastCoin = now - lastCoinTime;
+    
+    // 🎯 ENHANCED XP AND SCORE CALCULATION - All coin types!
+    let baseXp = 5;
+    let baseScore = 1;
+    let extraMultiplier = 1;
+    
+    switch (coin.type) {
+      case 'rainbow':
+        baseXp = 25;
+        baseScore = 10;
+        break;
+      case 'gem':
+        baseXp = 15;
+        baseScore = 5;
+        break;
+      case 'powerup':
+        baseXp = 20;
+        baseScore = 6;
+        // TODO: Grant temporary power-up
+        break;
+      case 'multiplier':
+        baseXp = 10;
+        baseScore = 3;
+        extraMultiplier = coin.multiplier || 2; // Double the rewards!
+        break;
+      default: // normal
+        baseXp = 5;
+        baseScore = 1;
+    }
+    
+    // Combo system
+    let newCombo = coinCombo;
+    if (timeSinceLastCoin < 3000) { // 3 second window
+      newCombo = Math.min(coinCombo + 1, 10); // Max 10x combo
+    } else {
+      newCombo = 1; // Reset combo
+    }
+    
+    const multiplier = newCombo >= 10 ? 10 : newCombo >= 5 ? 5 : newCombo >= 3 ? 3 : newCombo >= 2 ? 2 : 1;
+    const finalXp = baseXp * multiplier * extraMultiplier;
+    const finalScore = baseScore * multiplier * extraMultiplier;
+
+    // Update state
+    setCoinCount(prev => prev + finalScore);
+    setCoinCombo(newCombo);
+    setLastCoinTime(now);
+    gainXp(finalXp, `coin collection (${multiplier}x)`);
+
+    // 🎵 SATISFYING HAPTIC FEEDBACK
+    if (settings.hapticFeedback) {
+      try {
+        if (coin.type === 'rainbow') {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); // Stronger for rainbow!
+        } else {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
+      } catch (e) {
+        console.log('Haptic feedback not available');
+      }
+    }
+
+    // 🎵 JUICY COIN COLLECTION ANIMATION
+    Animated.sequence([
+      Animated.timing(coinCountAnim, { toValue: 1.4, duration: 120, useNativeDriver: true }),
+      Animated.timing(coinCountAnim, { toValue: 1, duration: 100, useNativeDriver: true })
+    ]).start();
+
+    // 🎵 ENHANCED COMBO POPUP with screen juice!
+    if (multiplier >= 2) {
+      setComboPopupVisible(true);
+      Animated.sequence([
+        Animated.timing(comboPopupAnim, { toValue: 1.2, duration: 200, useNativeDriver: true }), // Bigger pop!
+        Animated.timing(comboPopupAnim, { toValue: 1.0, duration: 100, useNativeDriver: true }),
+        Animated.delay(1200),
+        Animated.timing(comboPopupAnim, { toValue: 0, duration: 400, useNativeDriver: true })
+      ]).start(() => setComboPopupVisible(false));
+    }
+
+    // Remove coin
+    setMarioCoins(prev => prev.filter(c => c.id !== coinId));
+    
+    // 🎨 ENHANCED COLLECTION PARTICLES - Type-specific effects!
+    let particleCount, colors, particleSize, burst;
+    
+    switch (coin.type) {
+      case 'rainbow':
+        particleCount = 12;
+        colors = ['#FF69B4', '#FF1493', '#8A2BE2', '#4B0082', '#00CED1', '#FFD700'];
+        particleSize = 10;
+        burst = 300;
+        break;
+      case 'gem':
+        particleCount = 8;
+        colors = ['#8A2BE2', '#9370DB', '#BA55D3', '#DDA0DD'];
+        particleSize = 8;
+        burst = 250;
+        break;
+      case 'powerup':
+        particleCount = 10;
+        colors = ['#FF4500', '#FF6347', '#FFA500', '#FFD700'];
+        particleSize = 9;
+        burst = 280;
+        break;
+      case 'multiplier':
+        particleCount = 6;
+        colors = ['#32CD32', '#90EE90', '#00FF00', '#ADFF2F'];
+        particleSize = 7;
+        burst = 200;
+        break;
+      default: // normal
+        particleCount = 4;
+        colors = ['#FFD700', '#FFA500', '#FF8C00'];
+        particleSize = 6;
+        burst = 180;
+    }
+    
+    // Spawn particles in burst pattern
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 0.8;
+      const particle = {
+        id: `coin-particle-${Date.now()}-${i}`,
+        x: coin.x + Math.random() * 15 - 7.5,
+        y: coin.y + Math.random() * 15 - 7.5,
+        vx: Math.cos(angle) * burst * speed,
+        vy: Math.sin(angle) * burst * speed - 80, // Upward bias
+        life: 1.0,
+        maxLife: 1.0,
+        decay: 0.015, // Slower decay for better visibility
+        type: 'special' as const,
+        opacity: 1.0,
+        color: colors[i % colors.length],
+        size: particleSize + Math.random() * 3
+      };
+      setParticles(prev => [...prev, particle]);
+    }
+    
+    // ✨ EXTRA SPARKLE EFFECT for special coins
+    if (coin.type !== 'normal') {
+      for (let i = 0; i < 4; i++) {
+        setTimeout(() => {
+          const sparkle = {
+            id: `sparkle-${Date.now()}-${i}`,
+            x: coin.x + (Math.random() - 0.5) * 40,
+            y: coin.y + (Math.random() - 0.5) * 40,
+            vx: (Math.random() - 0.5) * 100,
+            vy: -Math.random() * 100 - 30,
+            life: 1.0,
+            maxLife: 1.0,
+            decay: 0.025,
+            type: 'special' as const,
+            opacity: 0.8,
+            color: '#FFFFFF',
+            size: 4
+          };
+          setParticles(prev => [...prev, sparkle]);
+        }, i * 50);
+      }
+    }
+    
+    // 🎵 MARIO-STYLE COIN COLLECTION SOUNDS!
+    if (coin.type === 'rainbow') {
+      playSound('rainbow');
+    } else if (coin.type === 'gem') {
+      playSound('gem');
+    } else if (coin.type === 'multiplier') {
+      playSound('multiplier');
+    } else {
+      playSound('coin');
+    }
+    
+    // 🎵 COMBO SOUND EFFECT
+    if (multiplier >= 5) {
+      setTimeout(() => playSound('combo'), 100); // Slight delay for combo celebration
+    }
+    
+    // 🎵 FLOATING SCORE TEXT
+    const scoreText = `+${finalScore}`;
+    const xpText = `+${finalXp} XP`;
+    console.log(`🪙 [COLLECT] ${coin.type} coin collected! ${scoreText} ${xpText} (${multiplier}x combo) 💥`);
+  }, [marioCoins, coinCombo, lastCoinTime, gainXp]);
+
+  const checkCoinCollisions = useCallback(() => {
+    if (gameState.isGameOver || marioCoins.length === 0) return;
+
+    // Use actual player Y position from playerState
+    const actualPlayerY = playerState === 'top' ? 150 : 732;
+    console.log(`🪙 [COLLISION] Checking ${marioCoins.length} coins vs Player Y=${actualPlayerY} state=${playerState}`);
+    
+    // More forgiving collision bounds!
+    const playerBounds = {
+      left: 20,  // Wider left bound
+      right: 80, // Wider right bound  
+      top: actualPlayerY - 30,  // Taller collision box
+      bottom: actualPlayerY + 30
+    };
+
+    console.log(`🪙 [COLLISION] Checking ${marioCoins.length} coins vs Player Y=${actualPlayerY} state=${playerState}`);
+
+    marioCoins.forEach(coin => {
+      const coinBounds = {
+        left: coin.x,
+        right: coin.x + 30,  // Slightly wider coin bounds
+        top: coin.y - 15,    // Slightly taller coin bounds
+        bottom: coin.y + 15
+      };
+
+      const collision = playerBounds.left < coinBounds.right &&
+                       playerBounds.right > coinBounds.left &&
+                       playerBounds.top < coinBounds.bottom &&
+                       playerBounds.bottom > coinBounds.top;
+
+      if (collision) {
+        console.log(`🪙 [COLLECT] ✅ COIN COLLECTED! Player(${playerBounds.left}-${playerBounds.right}, ${playerBounds.top}-${playerBounds.bottom}) vs Coin(${coinBounds.left}-${coinBounds.right}, ${coinBounds.top}-${coinBounds.bottom})`);
+        collectMarioCoin(coin.id);
+      } else {
+        // Debug: Show near misses
+        const distance = Math.abs((playerBounds.left + playerBounds.right) / 2 - (coinBounds.left + coinBounds.right) / 2);
+        if (distance < 100) {
+          console.log(`🪙 [NEAR] Coin ${coin.id} close! Distance: ${distance.toFixed(1)}px Player(${playerBounds.left}-${playerBounds.right}) Coin(${coinBounds.left}-${coinBounds.right})`);
+        }
+      }
+    });
+  }, [marioCoins, collectMarioCoin, gameState.isPlaying, playerState]);
+
+  const getCurrentLevelProgress = () => {
+    if (level >= XP_THRESHOLDS.length - 1) return { progress: 100, current: xp, needed: xp };
+    
+    const currentThreshold = XP_THRESHOLDS[level];
+    const nextThreshold = XP_THRESHOLDS[level + 1];
+    const progress = ((xp - currentThreshold) / (nextThreshold - currentThreshold)) * 100;
+    
+    return {
+      progress: Math.max(0, Math.min(100, progress)),
+      current: xp - currentThreshold,
+      needed: nextThreshold - currentThreshold
+    };
+  };
+
+  // ✨ PARTICLE SYSTEM STATE
    const [particles, setParticles] = useState<Particle[]>([]);
    const [trailParticles, setTrailParticles] = useState<TrailParticle[]>([]);
 
@@ -1141,7 +1675,7 @@ export default function App() {
      }
    }, []);
 
-   const playSound = useCallback((soundType: 'flip' | 'game_over' | 'start' | 'power_up' | 'achievement') => {
+   const playSound = useCallback((soundType: 'flip' | 'game_over' | 'start' | 'power_up' | 'achievement' | 'coin' | 'gem' | 'rainbow' | 'multiplier' | 'combo') => {
      // Get current settings from ref to avoid circular dependency
      const currentSettings = currentSettingsRef.current;
      if (!currentSettings?.audioEnabled || !audioContextRef.current) {
@@ -1174,6 +1708,22 @@ export default function App() {
            break;
          case 'achievement':
            buffer = createAudioBuffer([800, 1000, 1200, 1400], 0.4); // Achievement fanfare
+           break;
+         // 🪙 MARIO-STYLE COIN SOUNDS!
+         case 'coin':
+           buffer = createAudioBuffer([1047, 1319], 0.12); // Classic Mario coin sound (C6 to E6)
+           break;
+         case 'gem':
+           buffer = createAudioBuffer([1319, 1568, 1760], 0.15); // Sparkling gem sound (E6-G6-A6)
+           break;
+         case 'rainbow':
+           buffer = createAudioBuffer([1047, 1319, 1568, 1760, 2093], 0.25); // Rainbow ascending (C6-E6-G6-A6-C7)
+           break;
+         case 'multiplier':
+           buffer = createAudioBuffer([1760, 1568, 1760, 2093], 0.18); // Money multiplier sound
+           break;
+         case 'combo':
+           buffer = createAudioBuffer([1568, 1760, 2093, 2349], 0.3); // Combo celebration sound
            break;
        }
        
@@ -1232,7 +1782,7 @@ export default function App() {
       }, []);
 
    // ✨ PARTICLE SYSTEM FUNCTIONS
-   const createParticles = useCallback((x: number, y: number, type: Particle['type'], count: number = 8) => {
+   const createParticles = useCallback((x: number, y: number, type: Particle['type'], count: number = 4) => { // Reduced default particles for cleaner look
      const newParticles: Particle[] = [];
      
      for (let i = 0; i < count; i++) {
@@ -1417,6 +1967,7 @@ export default function App() {
          setPlayerState(PlayerState.TRANSITIONING);
      setTotalFlips(prev => {
        console.log(`🔄 [FLIP DEBUG] 📊 Total flips: ${prev} -> ${prev + 1}`);
+       gainXp(2, 'flip'); // 2 XP per flip
        return prev + 1;
      });
      
@@ -1501,7 +2052,7 @@ export default function App() {
     // MODE-SPECIFIC OBSTACLE PROPERTIES
     let obstacleCount = 1;
     let obstacleSize = OBSTACLE_WIDTH;
-    let obstacleColor = '#FF4444';
+    let obstacleColor = '#E53E3E'; // Clean solid red like reference game
     
     switch (gameState.currentMode) {
       case GameMode.TIME_ATTACK:
@@ -1522,7 +2073,7 @@ export default function App() {
         obstacleColor = '#4CAF50'; // Green for calm
         break;
       default: // CLASSIC
-        obstacleColor = '#FF4444';
+        obstacleColor = '#E53E3E'; // Clean solid red like reference game
         break;
     }
 
@@ -1604,6 +2155,9 @@ export default function App() {
 
   // ⭐ POWER-UP COLLISION DETECTION - MARTIN'S COLLECTION EDITION! 💎
   const checkPowerUpCollision = useCallback(() => {
+    if (gameState.isGameOver || powerUps.length === 0) return null;
+    console.log('[POWERUP DEBUG][COLLISION CHECK] Running power-up collision check. Power-ups in state:', powerUps.length);
+    
     const playerBounds = {
       x: 50 - PLAYER_SIZE / 2,
       y: currentPlayerY.current - PLAYER_SIZE / 2,
@@ -1768,7 +2322,7 @@ export default function App() {
    stopPlayerTrail();
    
    // ✨ CREATE EPIC EXPLOSION PARTICLE EFFECT
-   createParticles(50, currentPlayerY.current, 'explosion', 15);
+   createParticles(50, currentPlayerY.current, 'explosion', 8); // Reduced particles for cleaner look
    
    // 🏆 SUBMIT SCORE TO LEADERBOARD
    submitScore(gameState.distance, gameState.distance, bossesDefeated);
@@ -1778,6 +2332,41 @@ export default function App() {
 
    // 💥 EPIC GAME OVER SCREEN SHAKE!
    triggerScreenShake('extreme');
+
+   // 🏁 CHECK FOR COURSE COMPLETION FIRST!
+   if (currentCourse) {
+     const courseDistance = Math.floor(gameState.distance);
+     const targetReached = courseDistance >= currentCourse.targetDistance;
+     const coinsEarned = collectedCoins;
+     
+     if (targetReached) {
+       // 🎉 COURSE COMPLETED! Calculate stars and rewards
+       const coinPercentage = (coinsEarned / currentCourse.coinTarget) * 100;
+       let stars = 1; // Base completion star
+       if (coinPercentage >= 70) stars = 2;
+       if (coinPercentage >= 90) stars = 3;
+       
+       const completionData: CourseCompletion = {
+         courseId: currentCourse.id,
+         completed: true,
+         distance: courseDistance,
+         coinsCollected: coinsEarned,
+         stars: stars,
+         celebrationShown: false
+       };
+       
+       setCompletionData(completionData);
+       setShowCourseCompletion(true);
+       
+       // 🎊 EPIC COURSE COMPLETION EFFECTS!
+       createParticles(200, 400, 'achievement', 30);
+       triggerHaptic('success');
+       playSound('power_up');
+       
+       // Don't show regular game over - show course completion instead
+       return;
+     }
+   }
 
    // Game over modal entrance animation
    setTimeout(() => {
@@ -2282,7 +2871,7 @@ export default function App() {
        console.log(`[BOSS] 🎉 Boss defeated: ${getBossEmoji(boss.type as BossType)} ${getBossName(boss.type as BossType)} (Survived ${((Date.now() - parseInt(boss.id.split('_')[2])) / 1000).toFixed(1)}s)`);
        
        // Epic defeat effects
-       createParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, 'explosion', 25);
+       createParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, 'explosion', 12); // Reduced particles for cleaner look
        
        // 💥 EPIC BOSS DEFEAT CAMERA SHAKE!
        triggerScreenShake('heavy');
@@ -2342,7 +2931,7 @@ export default function App() {
       console.log(`[GAME LOOP] 🎮 Frame ${frameCount} (ID: ${frameId}) started`);
       console.log(`[GAME LOOP] 📊 Game state: speed=${gameState.speed.toFixed(1)}, distance=${gameState.distance.toFixed(1)}m, mode=${gameState.currentMode}`);
       console.log(`[GAME LOOP] 👤 Player: Y=${currentPlayerY.current.toFixed(1)}, state=${playerState}`);
-      console.log(`[GAME LOOP] 🚧 Objects: ${obstacles.length} obstacles, ${powerUps.length} power-ups, ${bosses.length} bosses`);
+      console.log(`[GAME LOOP] 🚧 Objects: ${obstacles.length} obstacles, ${powerUps.length} power-ups, ${bosses.length} bosses, ${marioCoins.length} mario-coins`);
       console.log(`[GAME LOOP] ⚡ Active power-ups: ${Object.entries(activePowerUps).filter(([_, p]) => p.active).map(([name]) => name).join(', ') || 'none'}`);
       
       try {
@@ -2355,7 +2944,7 @@ export default function App() {
         // MODE-SPECIFIC GAMEPLAY MECHANICS
         switch (prev.currentMode) {
           case GameMode.TIME_ATTACK:
-            speedMultiplier = 1.5; // 50% faster
+            speedMultiplier = 1.8; // 80% faster for speed power-ups!
             skillGainMultiplier = 2; // Double skill gain
             distanceMultiplier = 1.3; // 30% more distance per frame
             break;
@@ -2394,7 +2983,7 @@ export default function App() {
         return {
           ...prev,
           distance: newDistance,
-          speed: (BASE_SPEED + (prev.distance * 0.001)) * speedMultiplier,
+          speed: (BASE_SPEED + (prev.distance * 0.002)) * speedMultiplier, // Faster acceleration!
           skill: Math.min(10, (prev.distance / 100) * skillGainMultiplier),
           flow: Math.min(100, (prev.distance / 10) % 100),
           maxSpeed: Math.max(prev.maxSpeed, prev.speed),
@@ -2407,6 +2996,14 @@ export default function App() {
           ...obstacle,
           x: obstacle.x - (gameState.speed * timeMultiplier),
         })).filter(obstacle => obstacle.x > -100)
+      );
+
+      // 🪙 MOVE MARIO COINS (affected by time freeze!)
+      setMarioCoins(prev => 
+        prev.map(coin => ({
+          ...coin,
+          x: coin.x - (gameState.speed * timeMultiplier),
+        })).filter(coin => coin.x > -100)
       );
 
       // 🌟 MOVE BACKGROUND ELEMENTS - PARALLAX MAGIC!
@@ -2498,6 +3095,10 @@ export default function App() {
 
       // Check collisions (with Epic Power-Up Protection!)
       const hitObstacle = checkCollision();
+      
+      // 🪙 CHECK MARIO COIN COLLISIONS
+      checkCoinCollisions();
+      
       if (hitObstacle) {
         // 👻 GHOST MODE - Phase through obstacles!
         if (activePowerUps.ghostMode.active) {
@@ -2612,7 +3213,7 @@ export default function App() {
 
   // 🚧 SEPARATE OBSTACLE SPAWNING LOOP (prevents interval conflicts)
   useEffect(() => {
-    if (!gameState.isPlaying) return;
+    if (gameState.isGameOver) return;
 
     // Spawn obstacles and power-ups - MORE CHALLENGE! 💥
     obstacleSpawnRef.current = setInterval(() => {
@@ -2620,12 +3221,21 @@ export default function App() {
       if (gameState.currentMode === GameMode.POWER_UP_RUSH || Math.random() < 0.4) {
         spawnPowerUp();
       }
-    }, 1500); // 🔥 FASTER SPAWNING - every 1.5 seconds!
+      
+      // 🪙 MARIO-STYLE COIN SPAWNING - ALL NEW AMAZING PATTERNS!
+      console.log(`🪙 [SPAWN] Coin spawn check - Playing: ${gameState.isPlaying}, GameOver: ${gameState.isGameOver}, Coins: ${marioCoins.length}`);
+      const patterns = ['line', 'arc', 'zigzag'] as const;
+      const randomPattern = patterns[Math.floor(Math.random() * patterns.length)];
+      const spawnX = SCREEN_WIDTH + 50; // Closer spawn point
+      const spawnY = Math.random() * (SCREEN_HEIGHT - 400) + 200; // Better safe spawn area
+      console.log(`🪙 [SPAWN] ✨ Spawning ${randomPattern} pattern at X=${spawnX}, Y=${spawnY}`);
+      spawnCoinPattern(randomPattern, spawnX, spawnY);
+    }, 3000); // 🎯 BALANCED SPAWNING - every 3 seconds!
 
     return () => {
       if (obstacleSpawnRef.current) clearInterval(obstacleSpawnRef.current);
     };
-  }, [gameState.isPlaying, gameState.currentMode]);
+  }, [gameState.isGameOver, gameState.currentMode]);
 
   // 🎪 PULSING ANIMATION FOR MAIN MENU
   useEffect(() => {
@@ -3232,6 +3842,29 @@ export default function App() {
     }
   };
 
+  // 🏁 MARIO RUN INSPIRED HELPER FUNCTIONS!
+  const getEnvironmentColor = (environment: string) => {
+    switch (environment) {
+      case 'sky': return '#87CEEB';
+      case 'underground': return '#8B4513';
+      case 'castle': return '#696969';
+      case 'space': return '#483D8B';
+      case 'special': return '#FFD700';
+      default: return '#87CEEB';
+    }
+  };
+
+  const getEnvironmentEmoji = (environment: string) => {
+    switch (environment) {
+      case 'sky': return '☁️';
+      case 'underground': return '🌍';
+      case 'castle': return '🏰';
+      case 'space': return '🌌';
+      case 'special': return '⭐';
+      default: return '☁️';
+    }
+  };
+
   // 🏁 SUPER MARIO RUN INSPIRED COURSE SYSTEM LOGIC!
   const generateCourseCoins = useCallback((course: Course) => {
     const coins: Coin[] = [];
@@ -3558,6 +4191,7 @@ export default function App() {
     console.log(`[DEBUG DUMP]   Power-ups: ${powerUps.length}`);
     console.log(`[DEBUG DUMP]   Bosses: ${bosses.length}`);
     console.log(`[DEBUG DUMP]   Particles: ${particles.length}`);
+    console.log(`[DEBUG DUMP]   Mario Coins: ${marioCoins.length}`);
     
     // Active Power-ups
     const activePowerUpsList = Object.entries(activePowerUps)
@@ -3789,40 +4423,17 @@ export default function App() {
         )}
         
         <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenShake }] }]}>
-          {/* 🌟 PARALLAX BACKGROUND - EPIC SPACE ENVIRONMENT! */}
-          {/* Background Stars - Far layer */}
-          {backgroundStars.map(star => (
+          {/* 🌟 CLEAN MARIO RUN INSPIRED BACKGROUND! */}
+          {/* Simple Stars Only - No Confusing Shapes */}
+          {backgroundStars.slice(0, 30).map(star => ( // Limit to 30 simple stars
             <View
               key={star.id}
               style={[
-                styles.backgroundStar,
+                styles.cleanBackgroundStar,
                 {
                   left: star.x,
                   top: star.y,
-                  width: star.size,
-                  height: star.size,
-                  backgroundColor: star.color,
-                  opacity: star.opacity,
-                },
-              ]}
-            />
-          ))}
-
-          {/* Background Planets - Mid layer */}
-          {backgroundPlanets.map(planet => (
-            <View
-              key={planet.id}
-              style={[
-                styles.backgroundPlanet,
-                planet.type === 'planet' && styles.backgroundPlanetRound,
-                planet.type === 'moon' && styles.backgroundMoon,
-                planet.type === 'asteroid' && styles.backgroundAsteroid,
-                {
-                  left: planet.x,
-                  top: planet.y,
-                  width: planet.size,
-                  height: planet.size,
-                  backgroundColor: planet.color,
+                  opacity: star.opacity * 0.3, // Much more subtle
                 },
               ]}
             />
@@ -3831,13 +4442,90 @@ export default function App() {
           {/* 🎮 GAMEPLAY SCREEN */}
           {gameState.isPlaying && (
             <>
-              {/* Game UI */}
+              {/* 🎮 ENHANCED MARIO RUN STYLE GAME UI */}
               <View style={styles.gameUI}>
-                <Text style={styles.distanceText}>{Math.floor(gameState.distance)}m</Text>
-                <Text style={styles.speedText}>x{gameState.speed.toFixed(1)}</Text>
-                <Text style={styles.bestText}>Best: {gameState.highScore}m</Text>
-                {bossesDefeated > 0 && (
-                  <Text style={styles.bossCounter}>🦹‍♂️ Bosses: {bossesDefeated}</Text>
+                {/* 🏁 COURSE MODE UI */}
+                {currentCourse && (
+                  <>
+                    {/* Course Header */}
+                    <View style={styles.courseHeader}>
+                      <View style={styles.courseNumberBadge}>
+                        <Text style={styles.courseNumberText}>Course</Text>
+                        <Text style={styles.courseBigNumber}>{currentCourse.id}</Text>
+                      </View>
+                      <View style={styles.courseInfoPanel}>
+                        <Text style={styles.courseNameText}>{currentCourse.name}</Text>
+                        <Text style={styles.courseTargetText}>Goal: {currentCourse.targetDistance}m</Text>
+                      </View>
+                    </View>
+
+                    {/* Progress Bar */}
+                    <View style={styles.progressBarContainer}>
+                      <View style={styles.progressBarBG}>
+                        <View 
+                          style={[
+                            styles.progressBarFill, 
+                            { width: `${Math.min(100, (gameState.distance / currentCourse.targetDistance) * 100)}%` }
+                          ]} 
+                        />
+                      </View>
+                      <Text style={styles.progressText}>
+                        {gameState.distance.toFixed(0)}m / {currentCourse.targetDistance}m
+                      </Text>
+                    </View>
+
+                    {/* Coin Counter with Mario Run Style */}
+                    <View style={styles.coinCounterPanel}>
+                      <View style={styles.coinIcon}>
+                        <Text style={styles.coinEmoji}>🪙</Text>
+                      </View>
+                      <Text style={styles.coinCountText}>
+                        {collectedCoins || 0}
+                      </Text>
+                      <Text style={styles.coinTotalText}>
+                        / {courseCoins || 0}
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {/* 🌟 SIMPLIFIED CLASSIC MODE UI - NINTENDO CLEAN! */}
+                {!currentCourse && (
+                  <>
+                    {/* Distance - Left, Large, Bold */}
+                    <Text style={styles.simplifiedDistanceText}>
+                      {Math.floor(gameState.distance)}m
+                    </Text>
+                    
+                    {/* XP Bar + Number - Center */}
+                    <View style={styles.xpContainer}>
+                      <View style={styles.xpBarBackground}>
+                        <Animated.View 
+                          style={[
+                            styles.xpBarFill, 
+                            { 
+                              width: `${getCurrentLevelProgress().progress}%`,
+                              transform: [{ scale: xpGainAnim }]
+                            }
+                          ]} 
+                        />
+                      </View>
+                      <Text style={styles.xpText}>
+                        XP: {xp}
+                      </Text>
+                    </View>
+                    
+                    {/* Coin Counter + Level - Right Side */}
+                    <View style={styles.rightHudContainer}>
+                      <Animated.View style={[styles.coinCounter, { transform: [{ scale: coinCountAnim }] }]}>
+                        <Text style={styles.coinIcon}>🪙</Text>
+                        <Text style={styles.coinCountText}>{coinCount}</Text>
+                      </Animated.View>
+                      <View style={styles.levelBadge}>
+                        <Text style={styles.levelText}>Lv.{level}</Text>
+                      </View>
+                    </View>
+                  </>
                 )}
 
                 {/* ⚡ ACTIVE POWER-UPS INDICATOR - EPIC STATUS! */}
@@ -3869,8 +4557,7 @@ export default function App() {
                   )}
                 </View>
 
-                <Text style={styles.debugText}>🚧 Obstacles: {obstacles.length} | ⭐ Power-ups: {powerUps.length}</Text>
-                <Text style={styles.debugText}>🎯 Player Y: {Math.round(currentPlayerY.current)}</Text>
+                {/* Debug info moved to bottom-left for cleaner UI */}
               </View>
 
               {/* 🚨 BOSS WARNING SYSTEM */}
@@ -3881,14 +4568,53 @@ export default function App() {
                 </View>
               )}
 
-              {/* Skill/Flow Meter (from screenshots) */}
-              <View style={styles.skillMeter}>
-                <Text style={styles.skillText}>🎯 Skill: {gameState.skill.toFixed(1)}/10</Text>
-                <Text style={styles.flowText}>🌀 Flow: {Math.floor(gameState.flow)}%</Text>
-                <View style={styles.flowBar}>
-                  <View style={[styles.flowProgress, { width: `${gameState.flow}%` }]} />
-                </View>
+              {/* 📊 OPTIONAL DEBUG INFO - BOTTOM LEFT */}
+              <View style={styles.debugInfoPanel}>
+                <Text style={styles.debugText}>🚧 Obstacles: {obstacles.length} | ⭐ Power-ups: {powerUps.length}</Text>
+                <Text style={styles.debugText}>🎯 Player Y: {Math.round(currentPlayerY.current)}</Text>
+                <Text style={styles.debugText}>🎯 Skill: {gameState.skill.toFixed(1)}/10 | 🌀 Flow: {Math.floor(gameState.flow)}%</Text>
               </View>
+
+              {/* 🔥 ENHANCED COMBO POPUP - Dynamic & Exciting! */}
+              {comboPopupVisible && (
+                <Animated.View style={[
+                  styles.comboPopup,
+                  {
+                    transform: [
+                      { scale: comboPopupAnim },
+                      { translateY: comboPopupAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [30, -10] // More dramatic movement
+                      })},
+                      { rotate: comboPopupAnim.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: ['-5deg', '2deg', '0deg'] // Slight wobble
+                      })}
+                    ],
+                    opacity: comboPopupAnim,
+                    // Dynamic background color based on combo level
+                    backgroundColor: coinCombo >= 10 ? 'rgba(255, 0, 255, 0.9)' : 
+                                   coinCombo >= 5 ? 'rgba(255, 165, 0, 0.9)' : 
+                                   coinCombo >= 3 ? 'rgba(255, 215, 0, 0.9)' : 'rgba(50, 205, 50, 0.9)'
+                  }
+                ]}>
+                  <Text style={[styles.comboText, {
+                    fontSize: coinCombo >= 10 ? 32 : coinCombo >= 5 ? 28 : 24,
+                    color: coinCombo >= 10 ? '#FFFFFF' : coinCombo >= 5 ? '#FFD700' : '#FFFFFF'
+                  }]}>
+                    {coinCombo >= 10 ? '🏆 LEGEND' : coinCombo >= 5 ? '🔥 MEGA' : coinCombo >= 3 ? '⚡ SUPER' : '🌟 NICE'} 
+                    {' '}
+                    {coinCombo >= 10 ? '10x' : coinCombo >= 5 ? '5x' : coinCombo >= 3 ? '3x' : '2x'} COMBO!
+                  </Text>
+                  <Text style={[styles.comboSubtext, {
+                    color: coinCombo >= 10 ? '#FFD700' : '#FFFFFF'
+                  }]}>
+                    {coinCombo >= 10 ? '💎 UNSTOPPABLE! 💎' : 
+                     coinCombo >= 5 ? '🔥 ON FIRE! 🔥' : 
+                     coinCombo >= 3 ? '⚡ ELECTRIC! ⚡' : '🌟 KEEP GOING! 🌟'}
+                  </Text>
+                </Animated.View>
+              )}
 
               {/* 🔥 Player Trail Particles */}
               {playerTrail.map(trail => (
@@ -4053,6 +4779,77 @@ export default function App() {
                     ).join('')}
                   </Text>
                 </View>
+              ))}
+
+              {/* 🪙 MARIO-STYLE COINS */}
+              {marioCoins.map(coin => (
+                <Animated.View
+                  key={coin.id}
+                  style={[
+                    styles.marioCoin,
+                    {
+                      left: coin.x,
+                      top: coin.y,
+                      transform: [
+                        { translateY: coin.bounce },
+                        { scale: coin.sparkle },
+                        { rotateY: `${Date.now() / 10}deg` } // Spinning effect
+                      ],
+                      opacity: coin.sparkle
+                    }
+                  ]}
+                >
+                  <Text style={[
+                    styles.marioCoinIcon,
+                    { 
+                      color: coin.type === 'rainbow' ? '#FF69B4' : 
+                             coin.type === 'gem' ? '#8A2BE2' :
+                             coin.type === 'powerup' ? '#FF4500' :
+                             coin.type === 'multiplier' ? '#32CD32' : '#FFD700',
+                      textShadowColor: coin.type === 'rainbow' ? '#FF1493' : 
+                                      coin.type === 'gem' ? '#4B0082' :
+                                      coin.type === 'powerup' ? '#DC143C' :
+                                      coin.type === 'multiplier' ? '#228B22' : '#B8860B'
+                    }
+                  ]}>
+                    {coin.type === 'rainbow' ? '🌈' : 
+                     coin.type === 'gem' ? '💎' :
+                     coin.type === 'powerup' ? '⚡' :
+                     coin.type === 'multiplier' ? '💰' : '🪙'}
+                  </Text>
+                  
+                  {/* ✨ ENHANCED SPECIAL EFFECTS for all coin types! */}
+                  {coin.type === 'rainbow' && (
+                    <View style={styles.rainbowSparkles}>
+                      <Text style={[styles.sparkle, { top: -5, left: -8 }]}>✨</Text>
+                      <Text style={[styles.sparkle, { top: -3, right: -8 }]}>💫</Text>
+                      <Text style={[styles.sparkle, { bottom: -5, left: 5 }]}>⭐</Text>
+                      <Text style={[styles.sparkle, { top: 8, right: 3 }]}>🌟</Text>
+                    </View>
+                  )}
+                  
+                  {coin.type === 'gem' && (
+                    <View style={styles.gemSparkles}>
+                      <Text style={[styles.sparkle, { top: -2, left: -5, color: '#BA55D3' }]}>💎</Text>
+                      <Text style={[styles.sparkle, { bottom: -2, right: -5, color: '#9370DB' }]}>✨</Text>
+                    </View>
+                  )}
+                  
+                  {coin.type === 'powerup' && (
+                    <View style={styles.powerupGlow}>
+                      <Text style={[styles.sparkle, { top: -3, left: -6, color: '#FFA500' }]}>⚡</Text>
+                      <Text style={[styles.sparkle, { bottom: -3, right: -6, color: '#FF6347' }]}>💥</Text>
+                    </View>
+                  )}
+                  
+                  {coin.type === 'multiplier' && (
+                    <View style={styles.multiplierAura}>
+                      <Text style={[styles.sparkle, { top: -4, left: -7, color: '#90EE90' }]}>💲</Text>
+                      <Text style={[styles.sparkle, { bottom: -4, right: -7, color: '#ADFF2F' }]}>✨</Text>
+                      <Text style={[styles.sparkle, { top: 2, right: -2, color: '#32CD32', fontSize: 8 }]}>2x</Text>
+                    </View>
+                  )}
+                </Animated.View>
               ))}
 
               {/* ✨ SPECTACULAR PARTICLE EFFECTS */}
@@ -4302,13 +5099,17 @@ export default function App() {
                    transform: [{ scale: gameOverScaleAnim }],
                  }
                ]}>
-                                 <View style={styles.gameOverHeader}>
-                   <Text style={styles.gameOverTitle}>💀 {t.gameOver}</Text>
-                   <Text style={styles.playerNameDisplay}>👤 {playerName}</Text>
-                   <Text style={styles.gameOverSubtitle}>Nice try, gravity master!</Text>
-                 </View>
+                 <ScrollView 
+                   showsVerticalScrollIndicator={false}
+                   contentContainerStyle={{ paddingBottom: 20 }}
+                 >
+                   <View style={styles.gameOverHeader}>
+                     <Text style={styles.gameOverTitle}>💀 {t.gameOver}</Text>
+                     <Text style={styles.playerNameDisplay}>👤 {playerName}</Text>
+                     <Text style={styles.gameOverSubtitle}>Nice try, gravity master!</Text>
+                   </View>
 
-                <View style={styles.gameOverStatsContainer}>
+                   <View style={styles.gameOverStatsContainer}>
                   <View style={styles.gameOverMainStat}>
                     <Text style={styles.gameOverStatLabel}>Final Distance</Text>
                     <Text style={styles.gameOverStatValue}>{Math.floor(gameState.distance)}m</Text>
@@ -4347,15 +5148,15 @@ export default function App() {
                 </View>
 
                 {/* Motivational Message */}
-                                 <View style={styles.motivationalContainer}>
-                   <Text style={styles.motivationalText}>
-                     {gameState.distance < 50 ? t.keepPracticing :
-                      gameState.distance < 200 ? t.gettingBetter :
-                      gameState.distance < 500 ? t.excellentWork :
-                      gameState.distance < 1000 ? t.amazing :
-                      t.legendary}
-                   </Text>
-                 </View>
+                <View style={styles.motivationalContainer}>
+                  <Text style={styles.motivationalText}>
+                    {gameState.distance < 50 ? t.keepPracticing :
+                     gameState.distance < 200 ? t.gettingBetter :
+                     gameState.distance < 500 ? t.excellentWork :
+                     gameState.distance < 1000 ? t.amazing :
+                     t.legendary}
+                  </Text>
+                </View>
 
                 {/* Enhanced Game Over Buttons */}
                 <View style={styles.gameOverButtons}>
@@ -4391,15 +5192,6 @@ export default function App() {
                   <View style={styles.gameOverButtonRow}>
                     <TouchableOpacity 
                       style={styles.gameOverButtonSmall}
-                      onPress={() => setGameState(prev => ({ ...prev, isGameOver: false }))}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.gameOverButtonIcon}>🏠</Text>
-                      <Text style={styles.gameOverButtonText}>Menu</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={styles.gameOverButtonSmall}
                       onPress={() => {
                         setGameState(prev => ({ ...prev, isGameOver: false }));
                         setShowLeaderboard(true);
@@ -4409,8 +5201,18 @@ export default function App() {
                       <Text style={styles.gameOverButtonIcon}>🏆</Text>
                       <Text style={styles.gameOverButtonText}>Leaderboard</Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={styles.gameOverButtonSmall}
+                      onPress={() => setGameState(prev => ({ ...prev, isGameOver: false }))}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.gameOverButtonIcon}>🏠</Text>
+                      <Text style={styles.gameOverButtonText}>Menu</Text>
+                    </TouchableOpacity>
                   </View>
-                                 </View>
+                </View>
+                </ScrollView>
                </Animated.View>
              </View>
            )}
@@ -4958,6 +5760,161 @@ export default function App() {
           </View>
         </Modal>
 
+        {/* 🏁 COURSE SELECTION MODAL - SIMPLIFIED FOR NOW */}
+        <Modal visible={showCourseSelection} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.courseSelectionModal, { maxHeight: '80%' }]}>
+              <Text style={styles.customizationTitle}>🏁 Course Mode</Text>
+              <Text style={styles.customizationSubtitle}>Choose Your Challenge</Text>
+              
+              <ScrollView style={{ flex: 1, marginTop: 20 }}>
+                {courses.map((course) => (
+                  <TouchableOpacity
+                    key={course.id}
+                    style={[styles.skinOption, course.unlocked ? {} : { opacity: 0.5 }]}
+                    onPress={() => course.unlocked ? startCourse(course) : null}
+                    activeOpacity={course.unlocked ? 0.8 : 1}
+                  >
+                    <Text style={styles.skinName}>Course {course.id}: {course.name}</Text>
+                    <Text style={styles.skinDescription}>
+                      {course.unlocked ? `Target: ${course.targetDistance}m | Coins: ${course.coinTarget}` : '🔒 Locked'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setShowCourseSelection(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* 🎉 SUPER MARIO RUN INSPIRED COURSE COMPLETION MODAL! */}
+        <Modal visible={showCourseCompletion} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            {/* 🎊 CONFETTI BACKGROUND EFFECT */}
+            {showCourseCompletion && completionData && (
+              <View style={styles.confettiContainer}>
+                {Array.from({ length: 20 }).map((_, i) => (
+                  <Animated.View
+                    key={i}
+                    style={[
+                      styles.confettiPiece,
+                                             {
+                         left: `${Math.random() * 100}%`,
+                         top: Math.random() * -50,
+                         backgroundColor: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A'][Math.floor(Math.random() * 5)]
+                       }
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+            
+            <Animated.View style={[styles.clearedModal, { 
+              transform: [{ scale: gameOverScaleAnim }],
+              opacity: gameOverFadeAnim 
+            }]}>
+              {completionData && (
+                <>
+                  {/* 🎊 EPIC CLEARED BANNER WITH MARIO RUN STYLE */}
+                  <View style={styles.clearedHeader}>
+                    <Text style={styles.clearedTitle}>CLEARED!</Text>
+                    <View style={styles.clearedBadge}>
+                      <Text style={styles.clearedBadgeText}>Course {completionData.courseId}</Text>
+                    </View>
+                    <Text style={styles.clearedSubtitle}>Amazing Performance!</Text>
+                  </View>
+
+                  {/* ⭐ ANIMATED STAR RATING WITH MARIO RUN STYLE */}
+                  <View style={styles.starContainer}>
+                    {[1, 2, 3].map((star) => (
+                      <Animated.View
+                        key={star}
+                        style={[
+                          styles.starWrapper,
+                          {
+                            transform: [{ scale: star <= completionData.stars ? 1.2 : 0.8 }]
+                          }
+                        ]}
+                      >
+                        <Text style={[
+                          styles.starIcon,
+                          { 
+                            color: star <= completionData.stars ? '#FFD700' : '#444',
+                            textShadowColor: star <= completionData.stars ? '#FF8C00' : 'transparent',
+                            textShadowOffset: { width: 0, height: 2 },
+                            textShadowRadius: 4
+                          }
+                        ]}>
+                          ⭐
+                        </Text>
+                        {star <= completionData.stars && (
+                          <View style={styles.starGlow} />
+                        )}
+                      </Animated.View>
+                    ))}
+                  </View>
+
+                  {/* 📊 NINTENDO-STYLE COMPLETION STATS */}
+                  <View style={styles.completionStats}>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statIcon}>🏁</Text>
+                      <Text style={styles.statValue}>{completionData.distance}m</Text>
+                      <Text style={styles.statLabel}>Distance</Text>
+                    </View>
+                    
+                    <View style={styles.statCard}>
+                      <Text style={styles.statIcon}>🪙</Text>
+                      <Text style={styles.statValue}>{completionData.coinsCollected}</Text>
+                      <Text style={styles.statLabel}>Coins</Text>
+                    </View>
+                    
+                    <View style={styles.statCard}>
+                      <Text style={styles.statIcon}>⚡</Text>
+                      <Text style={styles.statValue}>{completionData.stars}/3</Text>
+                      <Text style={styles.statLabel}>Stars</Text>
+                    </View>
+                  </View>
+
+                  {/* 🎮 MARIO RUN STYLE ACTION BUTTONS */}
+                  <View style={styles.completionButtons}>
+                    <TouchableOpacity 
+                      style={[styles.completionButton, styles.continueButton]}
+                      onPress={() => {
+                        setShowCourseCompletion(false);
+                        setCurrentCourse(null);
+                        setCompletionData(null);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.completionButtonIcon}>🏠</Text>
+                      <Text style={styles.completionButtonText}>Menu</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      style={[styles.completionButton, styles.retryButton]}
+                      onPress={() => {
+                        setShowCourseCompletion(false);
+                        if (currentCourse) {
+                          // Restart the same course
+                          startCourse(currentCourse);
+                        }
+                      }}
+                    >
+                      <Text style={styles.closeButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </Animated.View>
+          </View>
+        </Modal>
+
         {/* 🎨 EPIC NINTENDO-STYLE CUSTOMIZATION MODAL */}
         <Modal visible={showCustomization} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
@@ -5377,7 +6334,7 @@ const styles = StyleSheet.create({
   },
   gameArea: {
     flex: 1,
-    backgroundColor: '#16213e',
+    backgroundColor: '#1E293B', // Slightly lighter background like reference game
   },
 
   // 🎮 GAMEPLAY STYLES
@@ -5390,6 +6347,183 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 10,
+  },
+
+  // 🌟 SIMPLIFIED TOP ROW STYLES - NINTENDO LEVEL CLEAN!
+  simplifiedDistanceText: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 1,
+  },
+  xpContainer: {
+    alignItems: 'center',
+    minWidth: 120,
+  },
+  xpBarBackground: {
+    width: 100,
+    height: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 10, 0.5)',
+    marginBottom: 4,
+  },
+  xpBarFill: {
+    height: '100%',
+    backgroundColor: '#FFD60A',
+    borderRadius: 3,
+    shadowColor: '#FFD60A',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  xpText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFD60A',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  levelBadge: {
+    backgroundColor: 'rgba(255, 214, 10, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: '#FFD60A',
+    shadowColor: '#FFD60A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
+  levelText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFD60A',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  
+  // 🪙 MARIO-STYLE COIN SYSTEM STYLES
+  rightHudContainer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  coinCounter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  coinIcon: {
+    fontSize: 18,
+    marginRight: 4,
+  },
+  coinCountText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFD700',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  comboPopup: {
+    position: 'absolute',
+    top: '30%',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 69, 0, 0.95)',
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderWidth: 3,
+    borderColor: '#FFD700',
+    shadowColor: '#FF4500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    zIndex: 100,
+  },
+  comboText: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  comboSubtext: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFD700',
+    textAlign: 'center',
+    marginTop: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  marioCoin: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  marioCoinIcon: {
+    fontSize: 20,
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  rainbowSparkles: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    top: -8,
+    left: -8,
+  },
+  sparkle: {
+    position: 'absolute',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  // ✨ NEW SPECIAL COIN EFFECT STYLES
+  gemSparkles: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    top: -8,
+    left: -8,
+  },
+  powerupGlow: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    top: -8,
+    left: -8,
+  },
+  multiplierAura: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    top: -8,
+    left: -8,
   },
   distanceText: {
     fontSize: 24,
@@ -5419,6 +6553,15 @@ const styles = StyleSheet.create({
     textShadowColor: '#000000',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+  debugInfoPanel: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 8,
+    padding: 8,
+    maxWidth: 200,
   },
 
   // 🚨 BOSS WARNING STYLES
@@ -5493,19 +6636,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
 
-  // 🎮 PLAYER
+  // 🎮 PLAYER - CLEAN SIMPLE STYLE (MARIO RUN INSPIRED)
   player: {
     position: 'absolute',
     width: PLAYER_SIZE,
     height: PLAYER_SIZE,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#2D3748', // Dark gray like reference game
     borderRadius: PLAYER_SIZE / 2,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
+    borderWidth: 1.5, // Thinner border like reference
+    borderColor: '#FFFFFF88', // Semi-transparent border like reference
+    // Removed excessive shadows for cleaner look
   },
 
   // ✨ PARTICLES
@@ -5578,14 +6718,11 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
 
-  // 🚧 OBSTACLES
+  // 🚧 OBSTACLES - CLEAN SIMPLE STYLE (MARIO RUN INSPIRED)
   obstacle: {
     position: 'absolute',
-    borderRadius: 5,
-    shadowColor: '#FF4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
+    borderRadius: 4, // Slightly rounded corners like reference
+    // Removed shadows for cleaner, sharper look like reference game
   },
 
      // 🏠 MAIN MENU STYLES (from Screenshot 3)
@@ -5856,16 +6993,18 @@ const styles = StyleSheet.create({
   // 💀 GAME OVER STYLES (from Screenshot 5)
   gameOverContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start', // Start from top
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingTop: 40, // Add top padding
   },
   gameOverModal: {
     backgroundColor: '#16213e',
     borderRadius: 20,
-    padding: 30,
+    padding: 20, // Reduced padding
     width: '90%',
     maxWidth: 400,
+    maxHeight: '85%', // Limit height
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#FFD60A',
@@ -5879,10 +7018,10 @@ const styles = StyleSheet.create({
      marginBottom: 20,
    },
    gameOverTitle: {
-     fontSize: 36,
+     fontSize: 32, // Slightly smaller
      fontWeight: 'bold',
      color: '#FF4081',
-     marginBottom: 8,
+     marginBottom: 6, // Less margin
      textAlign: 'center',
      textShadowColor: 'rgba(255, 64, 129, 0.8)',
      textShadowOffset: { width: 0, height: 2 },
@@ -5901,9 +7040,9 @@ const styles = StyleSheet.create({
    gameOverMainStat: {
      alignItems: 'center',
      backgroundColor: 'rgba(255, 255, 255, 0.08)',
-     borderRadius: 15,
-     padding: 20,
-     marginBottom: 15,
+     borderRadius: 12, // Smaller radius
+     padding: 15, // Less padding
+     marginBottom: 10, // Less margin
      borderWidth: 2,
      borderColor: 'rgba(255, 214, 10, 0.3)',
      shadowColor: '#FFD60A',
@@ -5920,13 +7059,13 @@ const styles = StyleSheet.create({
      letterSpacing: 0.5,
    },
    gameOverStatValue: {
-     fontSize: 32,
+     fontSize: 28, // Smaller font
      fontWeight: '900',
      color: '#FFD60A',
      textShadowColor: 'rgba(255, 214, 10, 0.8)',
      textShadowOffset: { width: 0, height: 2 },
      textShadowRadius: 6,
-     marginBottom: 5,
+     marginBottom: 4, // Less margin
    },
    newRecordBadge: {
      backgroundColor: '#22C55E',
@@ -6326,7 +7465,15 @@ const styles = StyleSheet.create({
      fontWeight: 'bold',
    },
 
-   // 🌟 PARALLAX BACKGROUND STYLES
+   // 🌟 CLEAN BACKGROUND STYLES (MARIO RUN INSPIRED)
+   cleanBackgroundStar: {
+     position: 'absolute',
+     width: 2,
+     height: 2,
+     borderRadius: 1,
+     backgroundColor: '#FFFFFF',
+     opacity: 0.2,
+   },
    backgroundStar: {
      position: 'absolute',
      width: 10,
@@ -7183,6 +8330,80 @@ const styles = StyleSheet.create({
      color: '#FFFFFF',
      letterSpacing: 0.5,
    },
+
+   // 🏁 MARIO RUN INSPIRED COURSE MODAL STYLES!
+   courseSelectionModal: {
+     backgroundColor: '#16213e',
+     borderRadius: 20,
+     padding: 20,
+     width: '90%',
+     maxWidth: 400,
+     maxHeight: '80%',
+     borderWidth: 2,
+     borderColor: '#3B82F6',
+     shadowColor: '#3B82F6',
+     shadowOffset: { width: 0, height: 8 },
+     shadowOpacity: 0.6,
+     shadowRadius: 15,
+     elevation: 15,
+   },
+   customizationTitle: {
+     fontSize: 24,
+     fontWeight: '900',
+     color: '#3B82F6',
+     textAlign: 'center',
+     marginBottom: 8,
+     textShadowColor: 'rgba(59, 130, 246, 0.8)',
+     textShadowOffset: { width: 0, height: 2 },
+     textShadowRadius: 8,
+   },
+   customizationSubtitle: {
+     fontSize: 16,
+     color: 'rgba(255, 255, 255, 0.8)',
+     textAlign: 'center',
+     marginBottom: 20,
+     fontStyle: 'italic',
+   },
+   skinOption: {
+     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+     borderRadius: 12,
+     padding: 15,
+     marginBottom: 10,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.1)',
+   },
+   skinName: {
+     fontSize: 16,
+     fontWeight: '700',
+     color: '#FFFFFF',
+     marginBottom: 4,
+   },
+   skinDescription: {
+     fontSize: 14,
+     color: 'rgba(255, 255, 255, 0.7)',
+   },
+   closeButtonText: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: '#FFFFFF',
+   },
+   courseModalFooter: {
+     marginTop: 20,
+     paddingTop: 15,
+     borderTopWidth: 1,
+     borderTopColor: 'rgba(255, 255, 255, 0.1)',
+   },
+   courseModalTip: {
+     fontSize: 14,
+     color: 'rgba(255, 255, 255, 0.6)',
+     textAlign: 'center',
+     fontStyle: 'italic',
+   },
+   epicOrbLockText: {
+     fontSize: 10,
+     color: '#AAAAAA',
+     textAlign: 'center',
+   },
    epicNewBadge: {
      position: 'absolute',
      top: 5,
@@ -7218,5 +8439,302 @@ const styles = StyleSheet.create({
      textAlign: 'center',
      marginTop: 4,
      fontStyle: 'italic',
+   },
+
+   // 🎉 MARIO RUN INSPIRED COURSE COMPLETION STYLES!
+   confettiContainer: {
+     position: 'absolute',
+     top: 0,
+     left: 0,
+     right: 0,
+     bottom: 0,
+     overflow: 'hidden',
+     pointerEvents: 'none',
+   },
+   confettiPiece: {
+     position: 'absolute',
+     width: 10,
+     height: 10,
+     top: -10,
+     borderRadius: 5,
+     opacity: 0.8,
+   },
+   clearedModal: {
+     backgroundColor: '#0F172A',
+     borderRadius: 25,
+     padding: 30,
+     width: '90%',
+     maxWidth: 400,
+     alignItems: 'center',
+     borderWidth: 3,
+     borderColor: '#FFD700',
+     shadowColor: '#FFD700',
+     shadowOffset: { width: 0, height: 10 },
+     shadowOpacity: 1,
+     shadowRadius: 30,
+     elevation: 25,
+   },
+   clearedHeader: {
+     alignItems: 'center',
+     marginBottom: 30,
+   },
+   clearedTitle: {
+     fontSize: 56,
+     fontWeight: '900',
+     color: '#FFD700',
+     textAlign: 'center',
+     letterSpacing: 4,
+     textShadowColor: '#FF8C00',
+     textShadowOffset: { width: 0, height: 4 },
+     textShadowRadius: 12,
+     marginBottom: 15,
+   },
+   clearedBadge: {
+     backgroundColor: '#3B82F6',
+     borderRadius: 20,
+     paddingHorizontal: 20,
+     paddingVertical: 8,
+     marginBottom: 10,
+     borderWidth: 2,
+     borderColor: '#FFFFFF',
+     shadowColor: '#3B82F6',
+     shadowOffset: { width: 0, height: 4 },
+     shadowOpacity: 0.6,
+     shadowRadius: 8,
+   },
+   clearedBadgeText: {
+     fontSize: 16,
+     fontWeight: '700',
+     color: '#FFFFFF',
+     letterSpacing: 1,
+   },
+   clearedSubtitle: {
+     fontSize: 18,
+     color: '#94A3B8',
+     fontStyle: 'italic',
+     textAlign: 'center',
+   },
+   starContainer: {
+     flexDirection: 'row',
+     justifyContent: 'center',
+     alignItems: 'center',
+     marginBottom: 25,
+     paddingVertical: 10,
+   },
+   starWrapper: {
+     alignItems: 'center',
+     justifyContent: 'center',
+     marginHorizontal: 8,
+     position: 'relative',
+   },
+   starIcon: {
+     fontSize: 48,
+     textAlign: 'center',
+   },
+   starGlow: {
+     position: 'absolute',
+     width: 60,
+     height: 60,
+     borderRadius: 30,
+     backgroundColor: '#FFD700',
+     opacity: 0.3,
+     top: -6,
+     left: -6,
+   },
+   
+   // 📊 COMPLETION STATS STYLES
+   completionStats: {
+     flexDirection: 'row',
+     justifyContent: 'space-around',
+     width: '100%',
+     marginBottom: 30,
+     paddingHorizontal: 10,
+   },
+   statCard: {
+     alignItems: 'center',
+     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+     borderRadius: 15,
+     padding: 15,
+     minWidth: 80,
+     borderWidth: 1,
+     borderColor: 'rgba(255, 255, 255, 0.1)',
+   },
+   statIcon: {
+     fontSize: 24,
+     marginBottom: 8,
+   },
+   statValue: {
+     fontSize: 20,
+     fontWeight: '900',
+     color: '#FFD700',
+     marginBottom: 4,
+     textAlign: 'center',
+   },
+   statLabel: {
+     fontSize: 12,
+     color: '#94A3B8',
+     textAlign: 'center',
+     fontWeight: '600',
+   },
+   
+   // 🎮 COMPLETION BUTTONS STYLES
+   completionButtons: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     width: '100%',
+     paddingHorizontal: 10,
+   },
+   completionButton: {
+     flex: 0.48,
+     backgroundColor: '#1E293B',
+     borderRadius: 15,
+     padding: 18,
+     alignItems: 'center',
+     borderWidth: 2,
+     borderColor: 'rgba(255, 255, 255, 0.1)',
+     shadowOffset: { width: 0, height: 4 },
+     shadowOpacity: 0.3,
+     shadowRadius: 8,
+     elevation: 6,
+   },
+   continueButton: {
+     backgroundColor: '#22C55E',
+     borderColor: '#16A34A',
+     shadowColor: '#22C55E',
+   },
+   retryButton: {
+     backgroundColor: '#F59E0B',
+     borderColor: '#D97706',
+     shadowColor: '#F59E0B',
+   },
+   completionButtonIcon: {
+     fontSize: 20,
+     marginBottom: 6,
+   },
+   completionButtonText: {
+     fontSize: 14,
+     fontWeight: '700',
+     color: '#FFFFFF',
+     textAlign: 'center',
+   },
+
+   // 🎮 MARIO RUN INSPIRED IN-GAME UI STYLES!
+   courseHeader: {
+     position: 'absolute',
+     top: 60,
+     left: 20,
+     right: 20,
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: 'rgba(0, 0, 0, 0.7)',
+     borderRadius: 15,
+     padding: 12,
+     borderWidth: 2,
+     borderColor: '#FFD700',
+   },
+   courseNumberBadge: {
+     backgroundColor: '#3B82F6',
+     borderRadius: 12,
+     padding: 8,
+     marginRight: 12,
+     alignItems: 'center',
+     minWidth: 50,
+     borderWidth: 2,
+     borderColor: '#FFFFFF',
+   },
+   courseNumberText: {
+     fontSize: 10,
+     color: '#FFFFFF',
+     fontWeight: '600',
+     marginBottom: 2,
+   },
+   courseBigNumber: {
+     fontSize: 18,
+     color: '#FFFFFF',
+     fontWeight: '900',
+   },
+   courseInfoPanel: {
+     flex: 1,
+   },
+   courseNameText: {
+     fontSize: 16,
+     color: '#FFFFFF',
+     fontWeight: '700',
+     marginBottom: 2,
+   },
+   courseTargetText: {
+     fontSize: 12,
+     color: '#94A3B8',
+     fontWeight: '500',
+   },
+   
+   // Progress Bar Styles
+   progressBarContainer: {
+     position: 'absolute',
+     top: 140,
+     left: 20,
+     right: 20,
+     backgroundColor: 'rgba(0, 0, 0, 0.7)',
+     borderRadius: 12,
+     padding: 10,
+     borderWidth: 2,
+     borderColor: '#4ADE80',
+   },
+   progressBarBG: {
+     height: 8,
+     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+     borderRadius: 4,
+     marginBottom: 6,
+     overflow: 'hidden',
+   },
+   progressBarFill: {
+     height: '100%',
+     backgroundColor: '#4ADE80',
+     borderRadius: 4,
+     shadowColor: '#4ADE80',
+     shadowOffset: { width: 0, height: 0 },
+     shadowOpacity: 0.8,
+     shadowRadius: 4,
+   },
+   progressText: {
+     fontSize: 12,
+     color: '#FFFFFF',
+     textAlign: 'center',
+     fontWeight: '600',
+   },
+   
+   // Coin Counter Styles
+   coinCounterPanel: {
+     position: 'absolute',
+     top: 200,
+     right: 20,
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: 'rgba(255, 215, 0, 0.9)',
+     borderRadius: 20,
+     padding: 8,
+     paddingHorizontal: 12,
+     borderWidth: 2,
+     borderColor: '#FFD700',
+     shadowColor: '#FFD700',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.8,
+     shadowRadius: 4,
+   },
+   coinIcon: {
+     marginRight: 6,
+   },
+   coinEmoji: {
+     fontSize: 16,
+   },
+   coinCountText: {
+     fontSize: 16,
+     color: '#1F2937',
+     fontWeight: '900',
+   },
+   coinTotalText: {
+     fontSize: 14,
+     color: '#6B7280',
+     fontWeight: '600',
    },
  });
